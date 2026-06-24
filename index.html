@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
   
+  <!-- Firebase Core SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -89,6 +90,15 @@
       font-size: 12px;
       color: #444;
     }
+    .chatImage {
+      max-width: 100%;
+      width: 240px;
+      height: auto;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 5px;
+      display: block;
+    }
     #replyPreview {
       display: none;
       background: #f0f0f0;
@@ -118,6 +128,15 @@
       font-size: 15px;
       outline: none;
     }
+    .footer .media-btn {
+      background: transparent;
+      border: none;
+      color: #555;
+      width: 40px;
+      height: 40px;
+      font-size: 22px;
+      cursor: pointer;
+    }
     .footer .send-btn {
       width: 40px;
       height: 40px;
@@ -131,6 +150,24 @@
       align-items: center;
       justify-content: center;
     }
+    #imageViewer {
+      display: none;
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,.95);
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    #imageViewer img {
+      max-width: 95%;
+      max-height: 95%;
+      border-radius: 4px;
+      object-fit: contain;
+    }
     @media(max-width:600px){
       .message { max-width: 85%; }
       .header { font-size: 18px; height: 55px; }
@@ -142,6 +179,7 @@
 </head>
 <body>
 
+<!-- Secure Login Screen Modal -->
 <div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
@@ -159,6 +197,7 @@
     </div>
 </div>
 
+<!-- Header -->
 <div class="header">
     <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
@@ -168,17 +207,35 @@
     </div>
 </div>
 
+<!-- Reply Preview Bar -->
 <div id="replyPreview"></div>
 
+<!-- Chat Area Box -->
 <div id="chat"></div>
 
+<!-- Floating Scroll Down Alert Button -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
   ⇣ New Message
 </button>
 
+<!-- Footer Controls -->
 <div class="footer">
+    <!-- Camera Trigger -->
+    <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
+    <!-- Gallery Trigger -->
+    <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
+    
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
+</div>
+
+<!-- Hidden Native Input Controllers -->
+<input type="file" id="cameraInput" accept="image/*" capture="user" style="display:none" onchange="uploadSelectedImage(this)">
+<input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
+
+<!-- Full Screen Image Lightbox -->
+<div id="imageViewer" onclick="closeImage()">
+    <img id="viewerImage">
 </div>
 
 <script>
@@ -191,7 +248,7 @@ const firebaseConfig = {
   messagingSenderId: "954532252846",
   appId: "1:954532252846:web:6c8eeee47fc14837b2f13f",
   measurementId: "G-4MLTB7VD3X",
-  databaseURL: "https://indian-customs-c6a8f-default-rtdb.firebaseio.com" // Force mapping default link
+  databaseURL: "https://indian-customs-c6a8f-default-rtdb.firebaseio.com"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -220,7 +277,6 @@ function checkSecureLogin() {
     let input = document.getElementById("usernameInput");
     let errorBox = document.getElementById("errorMessage");
     let enteredName = input.value.trim();
-
     errorBox.style.display = "none";
 
     if (enteredName === "") {
@@ -230,7 +286,6 @@ function checkSecureLogin() {
     }
 
     let usernameLower = enteredName.toLowerCase();
-
     if (usernameLower === "soham") {
         errorBox.style.color = "orange";
         errorBox.innerText = "Redirecting to ICEGATE Gateway...";
@@ -255,7 +310,7 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // 🚀 REALTIME LISTENER ENGINE: Har 2 second ka wait band, jaise hi message aayega instantly load hoga
+    // 🚀 REALTIME MESSAGES ENGINE
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         messages = [];
@@ -267,27 +322,70 @@ function initChat() {
         drawMessages();
     });
 
-    // Typing Status Reader
+    // 🌐 SMART LIVE STATUS MONITOR (Online / Typing / Last Seen)
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
-        let typingUsers = Object.keys(statusData).filter(u => u !== USER && statusData[u].typing === "Typing...");
+        let otherUser = Object.keys(statusData).find(u => u !== USER);
         let title = document.getElementById("chatTitle");
         
-        if (typingUsers.length) {
-            title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
-        } else {
-            let otherUser = Object.keys(statusData).find(u => u !== USER);
-            if (otherUser && statusData[otherUser].lastSeen) {
-                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#bbb;'>last seen: " + statusData[otherUser].lastSeen + "</small>";
+        if (otherUser) {
+            let info = statusData[otherUser];
+            if (info.typing === "Typing...") {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
+            } else if (info.state === "online") {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>online</small>";
+            } else if (info.lastSeen) {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#bbb;'>last seen: " + info.lastSeen + "</small>";
             } else {
                 title.innerText = "Indian Customs";
             }
+        } else {
+            title.innerText = "Indian Customs";
         }
     });
 
     document.getElementById("chat").addEventListener("scroll", checkScroll);
-    updateStatus();
-    setInterval(updateStatus, 10000); // Send heartbeat every 10 seconds
+    
+    // Set system heartbeat & smart disconnect hooks
+    setupPresence();
+}
+
+// 🔐 SMART DETECTOR: Detects Online, App Background, App Close & System Crash
+function setupPresence() {
+    let statusRef = db.ref("chats/status/" + USER);
+    let connectedRef = db.ref(".info/connected");
+
+    connectedRef.on("value", function(snap) {
+        if (snap.val() === true) {
+            // Jab user page par active ho to use online set karo
+            let d = new Date();
+            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+            
+            // Server disconnect hook: Jab app close ho, automatic Firebase database lastSeen set kar dega
+            statusRef.onDisconnect().set({
+                state: "offline",
+                lastSeen: timeStr,
+                typing: ""
+            });
+
+            statusRef.update({
+                state: "online",
+                lastSeen: timeStr,
+                typing: ""
+            });
+        }
+    });
+
+    // Mobile background state handler
+    document.addEventListener("visibilitychange", function() {
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+        if (document.hidden) {
+            statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
+        } else {
+            statusRef.update({ state: "online", lastSeen: timeStr });
+        }
+    });
 }
 
 function checkScroll() {
@@ -333,7 +431,7 @@ function drawMessages() {
                 if (old) {
                     let reply = document.createElement("div");
                     reply.className = "replyBox";
-                    reply.innerHTML = "<b>" + old.user + "</b><br>" + old.message;
+                    reply.innerHTML = "<b>" + old.user + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
                     box.appendChild(reply);
                 }
             }
@@ -343,9 +441,18 @@ function drawMessages() {
                 user.innerText = msg.user;
                 box.appendChild(user);
             }
-            let text = document.createElement("div");
-            text.innerText = msg.message;
-            box.appendChild(text);
+            
+            if (msg.type === "IMAGE") {
+                let img = document.createElement("img");
+                img.src = msg.media;
+                img.className = "chatImage";
+                img.onclick = function () { openImage(msg.media); };
+                box.appendChild(img);
+            } else {
+                let text = document.createElement("div");
+                text.innerText = msg.message;
+                box.appendChild(text);
+            }
 
             let time = document.createElement("div");
             time.className = "time";
@@ -370,7 +477,9 @@ function sendCurrentMessage() {
 
     db.ref("chats/messages").push({
         user: USER,
+        type: "TEXT",
         message: text,
+        media: "",
         time: timeStr,
         reply: replyId || "",
         edited: "",
@@ -382,6 +491,45 @@ function sendCurrentMessage() {
     hideReplyPreview();
 }
 
+// 📸 ATTACHMENT CONTROLLERS (Direct Image Conversion & Injection Pipeline)
+function openCamera() { document.getElementById("cameraInput").click(); }
+function openGallery() { document.getElementById("galleryInput").click(); }
+
+function uploadSelectedImage(input) {
+    if (!input.files.length) return;
+    let file = input.files[0];
+    let reader = new FileReader();
+
+    reader.onload = function (e) {
+        let base64Data = e.target.result;
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
+        // Directly injecting base64 media stream inside Firebase Realtime Database node
+        db.ref("chats/messages").push({
+            user: USER,
+            type: "IMAGE",
+            message: "",
+            media: base64Data,
+            time: timeStr,
+            reply: replyId || "",
+            edited: "",
+            deleted: ""
+        });
+        
+        input.value = "";
+        replyId = "";
+        hideReplyPreview();
+    };
+    reader.readAsDataURL(file);
+}
+
+function openImage(url) {
+    document.getElementById("viewerImage").src = url;
+    document.getElementById("imageViewer").style.display = "flex";
+}
+function closeImage() { document.getElementById("imageViewer").style.display = "none"; }
+
 function replyMessage(id) {
     replyId = id;
     let msg = messages.find(m => m.id === id);
@@ -389,7 +537,7 @@ function replyMessage(id) {
 
     let box = document.getElementById("replyPreview");
     box.style.display = "flex";
-    box.innerHTML = "<div><b>Replying to " + msg.user + "</b><br>" + msg.message + "</div>" +
+    box.innerHTML = "<div><b>Replying to " + msg.user + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
                     "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
 }
 
@@ -432,6 +580,7 @@ function showMenu(msg) {
     if (choice === "1") replyMessage(msg.id);
     if (choice === "2") {
         if (msg.user !== USER) { alert("Access Denied: Not your message."); return; }
+        if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
         let newText = prompt("Edit Message:", msg.message);
         if (newText && newText.trim() !== "") {
             db.ref("chats/messages/" + msg.id).update({ message: newText.trim(), edited: "YES" });
@@ -443,13 +592,6 @@ function showMenu(msg) {
             db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
         }
     }
-}
-
-function updateStatus() {
-    if (!USER) return;
-    let d = new Date();
-    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-    db.ref("chats/status/" + USER).update({ lastSeen: timeStr });
 }
 
 document.getElementById("chat").addEventListener("dblclick", function(e){
