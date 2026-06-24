@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-  <base target="_top">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Indian-Customs</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indian Customs</title>
+  
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <style>
     * {
@@ -13,18 +15,13 @@
       box-sizing: border-box;
       font-family: Arial, sans-serif;
     }
-
     html, body {
       height: 100%;
       background: #e5ddd5;
       overflow: hidden;
-    }
-
-    body {
       display: flex;
       flex-direction: column;
     }
-
     /* Header */
     .header {
       height: 60px;
@@ -39,12 +36,10 @@
       box-shadow: 0 2px 5px rgba(0,0,0,.2);
       flex-shrink: 0;
     }
-
     .header .right {
       display: flex;
       gap: 12px;
     }
-
     .header button {
       background: none;
       border: none;
@@ -53,12 +48,7 @@
       cursor: pointer;
       transition: opacity 0.2s;
     }
-
-    .header button:hover {
-      opacity: 0.8;
-    }
-
-    /* Dynamic Search Bar Style */
+    .header button:hover { opacity: 0.8; }
     #searchBar {
       padding: 6px 12px;
       border-radius: 15px;
@@ -68,7 +58,6 @@
       width: 40%;
       max-width: 250px;
     }
-
     /* Chat Area */
     #chat {
       flex: 1;
@@ -76,7 +65,6 @@
       padding: 12px;
       scroll-behavior: smooth;
     }
-
     /* Message Bubble */
     .message {
       max-width: 75%;
@@ -86,35 +74,12 @@
       position: relative;
       overflow-wrap: break-word;
       word-break: break-word;
-      animation: fade .2s ease-out;
       box-shadow: 0 1px 1px rgba(0,0,0,0.1);
     }
-
-    .me {
-      margin-left: auto;
-      background: #DCF8C6;
-    }
-
-    .other {
-      background: white;
-      margin-right: auto;
-    }
-
-    .user {
-      font-weight: bold;
-      color: #075E54;
-      margin-bottom: 4px;
-      font-size: 13px;
-    }
-
-    .time {
-      font-size: 10px;
-      color: #777;
-      text-align: right;
-      margin-top: 4px;
-    }
-
-    /* Reply Inside Chat Bubble */
+    .me { margin-left: auto; background: #DCF8C6; }
+    .other { background: white; margin-right: auto; }
+    .user { font-weight: bold; color: #075E54; margin-bottom: 4px; font-size: 13px; }
+    .time { font-size: 10px; color: #777; text-align: right; margin-top: 4px; }
     .replyBox {
       background: rgba(0,0,0,.04);
       border-left: 4px solid #34B7F1;
@@ -124,19 +89,6 @@
       font-size: 12px;
       color: #444;
     }
-
-    /* Images */
-    .chatImage {
-      max-width: 100%;
-      width: 240px;
-      height: auto;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-top: 5px;
-      display: block;
-    }
-
-    /* Reply Bar Header Above Footer */
     #replyPreview {
       display: none;
       background: #f0f0f0;
@@ -147,7 +99,6 @@
       align-items: center;
       border-top: 1px solid #ddd;
     }
-
     /* Footer Container */
     .footer {
       height: 60px;
@@ -158,7 +109,6 @@
       gap: 8px;
       flex-shrink: 0;
     }
-
     .footer input[type=text]{
       flex: 1;
       height: 40px;
@@ -168,17 +118,6 @@
       font-size: 15px;
       outline: none;
     }
-
-    /* Media Buttons Customization */
-    .footer .media-btn {
-      background: transparent;
-      color: #555;
-      width: 40px;
-      height: 40px;
-      font-size: 22px;
-    }
-
-    /* Main Send Button */
     .footer .send-btn {
       width: 40px;
       height: 40px;
@@ -191,50 +130,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.1s;
     }
-
-    .footer button:hover {
-      transform: scale(1.05);
-    }
-
-    /* Full Image Viewer Modal */
-    #imageViewer {
-      display: none;
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,.95);
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-    }
-
-    #imageViewer img {
-      max-width: 95%;
-      max-height: 95%;
-      border-radius: 4px;
-      object-fit: contain;
-    }
-
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 5px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(0,0,0,0.2);
-      border-radius: 10px;
-    }
-
-    /* Animation */
-    @keyframes fade {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Mobile Responsiveness */
     @media(max-width:600px){
       .message { max-width: 85%; }
       .header { font-size: 18px; height: 55px; }
@@ -244,24 +140,31 @@
     }
   </style>
 </head>
-
 <body>
 
 <div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:15px; font-family:Arial,sans-serif;">Welcome To Indian-Customs</h3>
-        <input type="text" id="usernameInput" placeholder="Enter Username..." style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;">
+        <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
+        <input 
+            type="text" 
+            id="usernameInput" 
+            name="disabled-autofill" 
+            autocomplete="new-password" 
+            spellcheck="false"
+            placeholder="Enter Username..." 
+            style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
+        >
         <p id="errorMessage" style="color:red; font-size:13px; margin-bottom:15px; display:none; font-weight:bold;"></p>
         <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Login</button>
     </div>
 </div>
 
 <div class="header">
-    <div id="chatTitle">Indian-Customs</div>
+    <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
     <div class="right">
         <button onclick="toggleSearch()" title="Search">🔍</button>
-        <button onclick="clearChatFromServer()" title="Clear">🗑️</button>
+        <button onclick="clearChatFromServer()" title="Clear All">🗑️</button>
     </div>
 </div>
 
@@ -269,63 +172,38 @@
 
 <div id="chat"></div>
 
-<button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999; transition: all 0.2s;">
+<button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
   ⇣ New Message
 </button>
 
 <div class="footer">
-    <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
-    <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
-<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="uploadSelectedImage(this)">
-<input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
-
-<div id="imageViewer" onclick="closeImage()">
-    <img id="viewerImage">
-</div>
-
 <script>
-// 🛑 WARNING: Yahan apni Google Apps Script ka '/exec' wala current URL paste karna mat bhoolna!
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyj8bjRwTp-Hgmgr1HCxHkKp8Pg7sgENn61U0M1MwaZCxdOIWBbzrAcdph0eaOPcbsn/exec";
+// --- FIREBASE INITIALIZATION ENGINE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAbwWS1bAn6ZNPEZ9TfeeBY4C6QosdtXiU",
+  authDomain: "indian-customs-c6a8f.firebaseapp.com",
+  projectId: "indian-customs-c6a8f",
+  storageBucket: "indian-customs-c6a8f.firebasestorage.app",
+  messagingSenderId: "954532252846",
+  appId: "1:954532252846:web:6c8eeee47fc14837b2f13f",
+  measurementId: "G-4MLTB7VD3X",
+  databaseURL: "https://indian-customs-c6a8f-default-rtdb.firebaseio.com" // Force mapping default link
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
 let USER = "";
 let messages = [];
 let replyId = "";
 let autoScroll = true;
-let loading = false;
-let GLOBAL_TITLE = "Indian-Customs"; 
-
-// ⚡ SPEED-BOOST GOOGLE ROUTING PARSER ENGINE (FAST DELIVERY FIX)
-function runGoogleScript(functionName, args, successFn, failFn) {
-    let url = GOOGLE_SCRIPT_URL + "?action=" + functionName;
-    
-    // URLSearchParams parser for instant data payload delivery
-    let formBody = [];
-    for (let key in args) {
-        let encodedKey = encodeURIComponent(key);
-        let encodedValue = encodeURIComponent(typeof args[key] === 'object' ? JSON.stringify(args[key]) : args[key]);
-        formBody.push(encodedKey + "=" + encodedValue);
-    }
-    formBody = formBody.join("&");
-
-    fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-        },
-        body: formBody
-    })
-    .then(res => res.json())
-    .then(resData => { if(successFn) successFn(resData); })
-    .catch(err => { if(failFn) failFn(err); });
-}
 
 window.onload = function () {
     USER = sessionStorage.getItem("ck_user");
-
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
@@ -334,7 +212,6 @@ window.onload = function () {
             return;
         }
     }
-    
     sessionStorage.removeItem("ck_user");
     document.getElementById("loginModal").style.display = "flex";
 };
@@ -345,7 +222,6 @@ function checkSecureLogin() {
     let enteredName = input.value.trim();
 
     errorBox.style.display = "none";
-    errorBox.innerText = "";
 
     if (enteredName === "") {
         errorBox.innerText = "🚨 Username cannot be empty!";
@@ -367,7 +243,6 @@ function checkSecureLogin() {
         USER = enteredName; 
         sessionStorage.setItem("ck_user", USER); 
         document.getElementById("loginModal").style.display = "none"; 
-        
         initChat(); 
         return;
     }
@@ -380,381 +255,212 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // 🛠️ LOGIN FIX BOUNDARY CHECK: Server parameters wait lock completely bypassed
-    runGoogleScript("appInfo", {}, function(info) {
-        if(info && info.title) {
-            GLOBAL_TITLE = info.title;
-            document.getElementById("chatTitle").innerText = GLOBAL_TITLE;
+    // 🚀 REALTIME LISTENER ENGINE: Har 2 second ka wait band, jaise hi message aayega instantly load hoga
+    db.ref("chats/messages").on("value", function(snapshot) {
+        let data = snapshot.val();
+        messages = [];
+        if (data) {
+            Object.keys(data).forEach(key => {
+                messages.push({ id: key, ...data[key] });
+            });
+        }
+        drawMessages();
+    });
+
+    // Typing Status Reader
+    db.ref("chats/status").on("value", function(snapshot) {
+        let statusData = snapshot.val() || {};
+        let typingUsers = Object.keys(statusData).filter(u => u !== USER && statusData[u].typing === "Typing...");
+        let title = document.getElementById("chatTitle");
+        
+        if (typingUsers.length) {
+            title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
+        } else {
+            let otherUser = Object.keys(statusData).find(u => u !== USER);
+            if (otherUser && statusData[otherUser].lastSeen) {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#bbb;'>last seen: " + statusData[otherUser].lastSeen + "</small>";
+            } else {
+                title.innerText = "Indian Customs";
+            }
         }
     });
 
-    loadMessages();
-    setInterval(loadMessages, 2000); 
-
     document.getElementById("chat").addEventListener("scroll", checkScroll);
-    
     updateStatus();
-    loadUsers();
+    setInterval(updateStatus, 10000); // Send heartbeat every 10 seconds
 }
 
 function checkScroll() {
     let chat = document.getElementById("chat");
     autoScroll = (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 80);
-    if (autoScroll) {
-        document.getElementById("netScrollBtn").style.display = "none";
-    }
+    if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
 }
 
 function scrollBottom() {
     if (!autoScroll) return;
-    let chat = document.getElementById("chat");
-    chat.scrollTop = chat.scrollHeight;
+    document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
 }
 
 function goBottomSmooth() {
-    let chat = document.getElementById("chat");
     autoScroll = true; 
     document.getElementById("netScrollBtn").style.display = "none"; 
-    chat.scrollTo({
-        top: chat.scrollHeight,
-        behavior: 'smooth' 
-    });
+    document.getElementById("chat").scrollTo({ top: document.getElementById("chat").scrollHeight, behavior: 'smooth' });
 }
 
-function keyPress(e) {
-    if (e.key === "Enter") {
-        sendCurrentMessage();
-    }
-}
+function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
-    runGoogleScript("setTyping", {user: USER, status: "Typing..."});
+    db.ref("chats/status/" + USER).update({ typing: "Typing..." });
     clearTimeout(window.typingTimer);
     window.typingTimer = setTimeout(function () {
-        runGoogleScript("setTyping", {user: USER, status: ""});
+        db.ref("chats/status/" + USER).update({ typing: "" });
     }, 1500);
 }
 
-// 🚀 ANTI-BLINK & DUPLICATE CLEANER DATA LAYER
-function loadMessages() {
-    if (loading || !USER) return;
-    loading = true;
-
-    runGoogleScript("getMessages", {}, function (data) {
-        if (data && JSON.stringify(messages) !== JSON.stringify(data)) {
-            messages = messages.filter(function(localMsg) {
-                if (String(localMsg.id).startsWith("TEMP_")) {
-                    let alreadyDelivered = data.some(function(serverMsg) {
-                        return serverMsg.user === localMsg.user && serverMsg.message === localMsg.message;
-                    });
-                    return !alreadyDelivered;
-                }
-                return false;
-            });
-            messages = data.concat(messages);
-            drawMessages();
-        } else if (!data || data.length === 0) {
-            // Edge case filter wrapper handling empty tables securely
-            if (messages.length === 0) { messages = []; drawMessages(); }
-        }
-        loading = false;
-    }, function() { loading = false; });
-}
-
-// 🚫 NO-BLINKING SMART RENDER ENGINE
 function drawMessages() {
     let chat = document.getElementById("chat");
-    let initialLoad = (chat.children.length === 0);
-    let hasNewIncoming = false;
-    let validBoxIds = [];
+    chat.innerHTML = "";
 
     messages.forEach(function (msg) {
-        let boxId = "msg_" + msg.id;
-        validBoxIds.push(boxId);
+        let box = document.createElement("div");
+        box.className = "message " + (msg.user === USER ? "me" : "other");
 
-        let existingBox = document.getElementById(boxId);
-        let box = existingBox || document.createElement("div");
-        box.id = boxId;
-        box.className = "message " + (msg.user == USER ? "me" : "other");
-        box.innerHTML = ""; 
-
-        if (msg.deleted === "YES" || msg.deleted === true) {
-            let deletedText = document.createElement("div");
-            deletedText.innerHTML = "<i>🚫 This message was deleted</i>";
-            deletedText.style.color = "#aaa";
-            box.appendChild(deletedText);
-            
-            let time = document.createElement("div");
-            time.className = "time";
-            time.innerText = msg.time;
-            box.appendChild(time);
+        if (msg.deleted === "YES") {
+            box.innerHTML = "<div style='color:#aaa;'><i>🚫 This message was deleted</i></div><div class='time'>" + msg.time + "</div>";
         } else {
             if (msg.reply) {
-                let old = messages.find(function (m) { return m.id == msg.reply; });
+                let old = messages.find(m => m.id === msg.reply);
                 if (old) {
                     let reply = document.createElement("div");
                     reply.className = "replyBox";
-                    reply.innerHTML = "<b>" + old.user + "</b><br>" +
-                        (old.type == "IMAGE" || old.type == "image" ? "📷 Photo" : old.message);
+                    reply.innerHTML = "<b>" + old.user + "</b><br>" + old.message;
                     box.appendChild(reply);
                 }
             }
-
-            if (msg.user != USER) {
+            if (msg.user !== USER) {
                 let user = document.createElement("div");
                 user.className = "user";
                 user.innerText = msg.user;
                 box.appendChild(user);
             }
-
-            if (msg.type == "TEXT" || msg.type == "text") {
-                let text = document.createElement("div");
-                text.innerText = msg.message;
-                box.appendChild(text);
-            }
-
-            if (msg.type == "IMAGE" || msg.type == "image") {
-                let img = document.createElement("img");
-                img.src = msg.media;
-                img.className = "chatImage";
-                img.loading = "lazy";
-                img.onclick = function () { openImage(msg.media); };
-                box.appendChild(img);
-            }
+            let text = document.createElement("div");
+            text.innerText = msg.message;
+            box.appendChild(text);
 
             let time = document.createElement("div");
             time.className = "time";
-            time.innerHTML = msg.time ? (msg.time + (msg.edited ? " • Edited" : "")) : "";
+            time.innerText = msg.time + (msg.edited ? " • Edited" : "");
             box.appendChild(time);
         }
 
         box.oncontextmenu = function (e) { e.preventDefault(); showMenu(msg); };
-        let press;
-        box.ontouchstart = function () { press = setTimeout(function () { showMenu(msg); }, 600); };
-        box.ontouchend = function () { clearTimeout(press); };
-        box.ontouchmove = function () { clearTimeout(press); };
-
-        if (!existingBox) {
-            chat.appendChild(box);
-            if (!initialLoad) hasNewIncoming = true; 
-        }
+        chat.appendChild(box);
     });
 
-    let allCurrentBoxes = chat.querySelectorAll(".message");
-    allCurrentBoxes.forEach(function(box) {
-        if (validBoxIds.indexOf(box.id) === -1) {
-            chat.removeChild(box);
-        }
-    });
-
-    if (initialLoad || autoScroll) {
-        scrollBottom();
-    } else if (hasNewIncoming) {
-        document.getElementById("netScrollBtn").style.display = "block";
-    }
+    scrollBottom();
 }
 
-// 🚀 INSTANT FLOW MESSAGE DISCHARGER WITH BLANK TIME SETUP
 function sendCurrentMessage() {
     let input = document.getElementById("message");
     let text = input.value.trim();
-    if (text == "") return;
+    if (text === "") return;
 
-    let now = new Date();
-    let tempId = "TEMP_" + now.getTime();
+    let d = new Date();
+    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
-    let tempMsg = {
-        id: tempId,
-        timestamp: now.getTime(),
-        time: "", 
+    db.ref("chats/messages").push({
         user: USER,
-        type: "TEXT",
         message: text,
-        media: "",
+        time: timeStr,
         reply: replyId || "",
         edited: "",
         deleted: ""
-    };
-    
-    messages.push(tempMsg);
-    drawMessages();
-    
+    });
+
     input.value = "";
-    let savedReplyId = replyId; 
     replyId = "";
     hideReplyPreview();
-
-    runGoogleScript("sendMessage", {user: USER, message: text, replyId: savedReplyId}, function () {
-        loadMessages();
-    }, function() {
-        loadMessages();
-    });
 }
 
 function replyMessage(id) {
     replyId = id;
-    let msg = messages.find(function (m) { return m.id == id; });
+    let msg = messages.find(m => m.id === id);
     if (!msg) return;
 
     let box = document.getElementById("replyPreview");
     box.style.display = "flex";
-    box.innerHTML = "<div><b>Replying to " + msg.user + "</b><br>" +
-        (msg.type == "IMAGE" || msg.type == "image" ? "📷 Photo" : msg.message) + "</div>" +
-        "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
+    box.innerHTML = "<div><b>Replying to " + msg.user + "</b><br>" + msg.message + "</div>" +
+                    "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
 }
 
-function hideReplyPreview() {
-    replyId = "";
-    document.getElementById("replyPreview").style.display = "none";
-}
+function hideReplyPreview() { replyId = ""; document.getElementById("replyPreview").style.display = "none"; }
 
 function toggleSearch() {
     let bar = document.getElementById("searchBar");
-    if(bar) {
-        if(bar.style.display === "none") {
-            bar.style.display = "inline-block";
-            bar.focus();
-        } else {
-            bar.style.display = "none";
-            bar.value = "";
-            loadMessages(); 
-        }
+    if(bar.style.display === "none") {
+        bar.style.display = "inline-block";
+        bar.focus();
+    } else {
+        bar.style.display = "none";
+        bar.value = "";
+        drawMessages();
     }
 }
 
 function filterMessages() {
     let query = document.getElementById("searchBar").value.toLowerCase();
     if(query === "") { drawMessages(); return; }
-    
-    let filtered = messages.filter(function(m) {
-        return m.deleted !== "YES" && m.message && m.message.toLowerCase().includes(query);
-    });
-    
-    let temp = messages;
-    messages = filtered;
+    let filtered = messages.filter(m => m.deleted !== "YES" && m.message && m.message.toLowerCase().includes(query));
     
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
-    drawMessages();
-    messages = temp; 
-}
-
-function clearChatFromServer() {
-    if (!confirm("Wipe all system chats? This action is irreversible.")) return;
-    runGoogleScript("clearChat", {}, function () {
-        document.getElementById("chat").innerHTML = ""; 
-        messages = [];
-        loadMessages();
+    filtered.forEach(function (msg) {
+        let box = document.createElement("div");
+        box.className = "message " + (msg.user === USER ? "me" : "other");
+        box.innerHTML = "<div><b>" + msg.user + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
+        chat.appendChild(box);
     });
 }
 
-function openCamera() { document.getElementById("cameraInput").click(); }
-function openGallery() { document.getElementById("galleryInput").click(); }
-
-function uploadSelectedImage(input) {
-    if (!input.files.length) return;
-    let file = input.files[0];
-    let reader = new FileReader();
-
-    reader.onload = function (e) {
-        let base64 = e.target.result.split(",")[1];
-        runGoogleScript("uploadImage", {base64Data: base64, filename: file.name, mimeType: file.type, user: USER, replyId: replyId}, function () {
-            input.value = "";
-            loadMessages();
-        });
-    };
-    reader.readAsDataURL(file);
-}
-
-function openImage(url) {
-    document.getElementById("viewerImage").src = url;
-    document.getElementById("imageViewer").style.display = "flex";
-}
-
-function closeImage() {
-    document.getElementById("imageViewer").style.display = "none";
+function clearChatFromServer() {
+    if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
+    db.ref("chats/messages").set(null);
 }
 
 function showMenu(msg) {
     let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
-    if (choice == "1") { replyMessage(msg.id); }
-    if (choice == "2") {
-        if (msg.user != USER) { alert("Access Denied: Not your message."); return; }
-        if (msg.type !== "TEXT" && msg.type !== "text") { alert("Images cannot be modified."); return; }
-        
+    if (choice === "1") replyMessage(msg.id);
+    if (choice === "2") {
+        if (msg.user !== USER) { alert("Access Denied: Not your message."); return; }
         let newText = prompt("Edit Message:", msg.message);
-        if (newText == null || newText.trim() == "") return;
-        
-        runGoogleScript("editMessage", {id: msg.id, newText: newText.trim()}, function() {
-            loadMessages();
-        });
-    }
-    if (choice == "3") {
-        if (msg.user != USER) { alert("Access Denied: Not your message."); return; }
-        if (!confirm("Delete permanently?")) return;
-        runGoogleScript("deleteMessage", {id: msg.id}, function() {
-            loadMessages();
-        });
-    }
-}
-
-document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeImage();
-});
-
-// Structural initialization checks
-function updateStatus() {
-    runGoogleScript("updateUser", {user: USER});
-}
-
-function loadUsers() {
-    runGoogleScript("getUsers", {}, function(users){
-        if(!users || !users.filter) return;
-        let typingUsers = users.filter(function(u){
-            return u.user != USER && u.typing == "Typing...";
-        });
-        let title = document.getElementById("chatTitle");
-        
-        if(typingUsers.length){
-            title.innerHTML = GLOBAL_TITLE + "<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
-        } else {
-            let otherUser = users.find(function(u){ return u.user != USER; });
-            if(otherUser && otherUser.last_seen) {
-                title.innerHTML = GLOBAL_TITLE + "<br><small style='font-size:11px;color:#bbb;'>last seen: " + otherUser.last_seen + "</small>";
-            } else {
-                title.innerText = GLOBAL_TITLE;
-            }
+        if (newText && newText.trim() !== "") {
+            db.ref("chats/messages/" + msg.id).update({ message: newText.trim(), edited: "YES" });
         }
-    });
+    }
+    if (choice === "3") {
+        if (msg.user !== USER) { alert("Access Denied: Not your message."); return; }
+        if (confirm("Delete permanently?")) {
+            db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
+        }
+    }
 }
 
-setInterval(function(){
-    updateStatus();
-    loadUsers();
-}, 3000);
-
-window.onbeforeunload = function(){
-    runGoogleScript("setTyping", {user: USER, status: ""});
-};
-
-window.addEventListener("load", function(){
-    let input = document.getElementById("message");
-    if(input) input.focus();
-});
+function updateStatus() {
+    if (!USER) return;
+    let d = new Date();
+    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+    db.ref("chats/status/" + USER).update({ lastSeen: timeStr });
+}
 
 document.getElementById("chat").addEventListener("dblclick", function(e){
     let box = e.target.closest(".message");
     if(!box) return;
-    
     let textDiv = box.querySelector("div:not(.user):not(.time):not(.replyBox)");
     if(textDiv) {
-        let match = messages.find(function(m) { return m.message === textDiv.innerText; });
+        let match = messages.find(m => m.message === textDiv.innerText);
         if(match && match.deleted !== "YES") replyMessage(match.id);
     }
 });
-
-window.addEventListener("offline", function(){ alert("Connection Lost. Working Offline."); });
-window.addEventListener("online", function(){ loadMessages(); });
 </script>
 </body>
 </html>
