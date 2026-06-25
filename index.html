@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
   
+  <!-- Firebase Core SDKs (Legacy Scripts for Perfect Single-File Execution) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -182,6 +183,7 @@
 </head>
 <body>
 
+<!-- Secure Login Screen Modal -->
 <div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
@@ -199,6 +201,7 @@
     </div>
 </div>
 
+<!-- Header -->
 <div class="header">
     <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
@@ -208,14 +211,18 @@
     </div>
 </div>
 
+<!-- Reply Preview Bar -->
 <div id="replyPreview"></div>
 
+<!-- Chat Area Box -->
 <div id="chat"></div>
 
+<!-- Floating Scroll Down Alert Button -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
   ⇣ New Message
 </button>
 
+<!-- Footer Controls Panel -->
 <div class="footer">
     <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
     <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
@@ -223,9 +230,11 @@
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
-<input type="file" id="cameraInput" accept="image/*" capture="user" style="display:none" onchange="uploadSelectedImage(this)">
+<!-- Hidden Native Input Controllers (Environment tag forces real hardware capture dialog) -->
+<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="uploadSelectedImage(this)">
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 
+<!-- Full Screen Image Lightbox Viewer -->
 <div id="imageViewer" onclick="closeImage()">
     <img id="viewerImage">
 </div>
@@ -314,7 +323,7 @@ function initChat() {
         drawMessages();
     });
 
-    // 🌐 WHATSAPP-STYLE LIVE STATUS MONITOR (Online / Typing / Last Seen)
+    // 🌐 WHATSAPP-STYLE LIVE STATUS MONITOR
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
         let otherUser = Object.keys(statusData).find(u => u !== USER);
@@ -337,12 +346,10 @@ function initChat() {
     });
 
     document.getElementById("chat").addEventListener("scroll", checkScroll);
-    
-    // Core Engine Integration
     setupPresence();
 }
 
-// 🔐 SMART DETECTOR: Realtime Online-Offline Heartbeat State Engine
+// 🔐 SMART DETECTOR: Heartbeat Presence Engine & Lock-Unlock Security Guard
 function setupPresence() {
     let statusRef = db.ref("chats/status/" + USER);
     let connectedRef = db.ref(".info/connected");
@@ -352,7 +359,6 @@ function setupPresence() {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
             
-            // OnDisconnect hook rules
             statusRef.onDisconnect().set({
                 state: "offline",
                 lastSeen: timeStr,
@@ -367,13 +373,30 @@ function setupPresence() {
         }
     });
 
-    // Browser Background Visibility Sensor
+    // 🔒 SMART PRIVACY CONTROLLER: Detects Background State vs Hardware Screen Lock
     document.addEventListener("visibilitychange", function() {
         let d = new Date();
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+        
         if (document.hidden) {
+            // User went away (Swipe up OR Phone locked) - Mark offline and save precise out time
             statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
+            sessionStorage.setItem("lock_timestamp", Date.now());
         } else {
+            // User came back! Let's check how long they were gone
+            let lockTime = sessionStorage.getItem("lock_timestamp");
+            if (lockTime) {
+                let timeGap = Date.now() - parseInt(lockTime);
+                
+                // If phone was locked or closed for more than 5 seconds, trigger secure logout!
+                if (timeGap > 5000) {
+                    sessionStorage.removeItem("ck_user");
+                    sessionStorage.removeItem("lock_timestamp");
+                    location.reload(); // Instantly drops them back into the Secure Username Screen
+                    return;
+                }
+            }
+            // If it was just a quick app-switch (under 5s), keep them logged in nicely
             statusRef.update({ state: "online", lastSeen: timeStr });
         }
     });
@@ -482,7 +505,7 @@ function sendCurrentMessage() {
     hideReplyPreview();
 }
 
-// 📷 FULL BINARY MEDIA FILE HANDLERS
+// 📸 FILE INPUT TRIGGERS
 function openCamera() { document.getElementById("cameraInput").click(); }
 function openGallery() { document.getElementById("galleryInput").click(); }
 
