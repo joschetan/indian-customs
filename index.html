@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
   
-  <!-- Firebase Core SDKs (Legacy Scripts for Perfect Single-File Execution) -->
+  <!-- Firebase Core SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -47,9 +47,7 @@
       color: white;
       font-size: 20px;
       cursor: pointer;
-      transition: opacity 0.2s;
     }
-    .header button:hover { opacity: 0.8; }
     #searchBar {
       padding: 6px 12px;
       border-radius: 15px;
@@ -59,14 +57,14 @@
       width: 40%;
       max-width: 250px;
     }
-    /* Chat View Sandbox */
+    /* Chat Area */
     #chat {
       flex: 1;
       overflow-y: auto;
       padding: 12px;
       scroll-behavior: smooth;
     }
-    /* Message Bubble Logic */
+    /* Message Bubble */
     .message {
       max-width: 75%;
       padding: 8px 12px;
@@ -109,7 +107,7 @@
       align-items: center;
       border-top: 1px solid #ddd;
     }
-    /* Core Footer Control Deck */
+    /* Footer controls */
     .footer {
       height: 60px;
       background: #f0f0f0;
@@ -138,8 +136,6 @@
       font-size: 22px !important;
       cursor: pointer !important;
       display: inline-block !important;
-      opacity: 1 !important;
-      visibility: visible !important;
     }
     .footer .send-btn {
       width: 40px;
@@ -230,8 +226,8 @@
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
-<!-- Hidden Native Input Controllers (Environment tag forces real hardware capture dialog) -->
-<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="uploadSelectedImage(this)">
+<!-- Universal Web Inputs for Maximum Device Fallback compatibility -->
+<input type="file" id="cameraInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 
 <!-- Full Screen Image Lightbox Viewer -->
@@ -311,7 +307,6 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // 🚀 REALTIME MESSAGES SYNC PIPELINE
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         messages = [];
@@ -323,7 +318,6 @@ function initChat() {
         drawMessages();
     });
 
-    // 🌐 WHATSAPP-STYLE LIVE STATUS MONITOR
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
         let otherUser = Object.keys(statusData).find(u => u !== USER);
@@ -349,7 +343,7 @@ function initChat() {
     setupPresence();
 }
 
-// 🔐 SMART DETECTOR: Heartbeat Presence Engine & Lock-Unlock Security Guard
+// 🔐 EXPERT HARDWARE LOCK DETECTOR & BACKGROUND CONTROLLER FOR VIVO
 function setupPresence() {
     let statusRef = db.ref("chats/status/" + USER);
     let connectedRef = db.ref(".info/connected");
@@ -358,45 +352,44 @@ function setupPresence() {
         if (snap.val() === true) {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-            
-            statusRef.onDisconnect().set({
-                state: "offline",
-                lastSeen: timeStr,
-                typing: ""
-            });
-
-            statusRef.update({
-                state: "online",
-                lastSeen: timeStr,
-                typing: ""
-            });
+            statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
+            statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
         }
     });
 
-    // 🔒 SMART PRIVACY CONTROLLER: Detects Background State vs Hardware Screen Lock
+    // 🎯 STRICT SCREEN LOCK SENSOR (Fires instantly before OS pauses execution)
+    let isAppInSwipedBackground = false;
+
+    // A. Detect if user intentionally did Swipe Up to go to home screen
+    window.onblur = function() {
+        isAppInSwipedBackground = true; 
+    };
+    window.onfocus = function() {
+        isAppInSwipedBackground = false; 
+    };
+
+    // B. Main Hardware Visibility Loop
     document.addEventListener("visibilitychange", function() {
         let d = new Date();
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
-            // User went away (Swipe up OR Phone locked) - Mark offline and save precise out time
             statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
-            sessionStorage.setItem("lock_timestamp", Date.now());
-        } else {
-            // User came back! Let's check how long they were gone
-            let lockTime = sessionStorage.getItem("lock_timestamp");
-            if (lockTime) {
-                let timeGap = Date.now() - parseInt(lockTime);
-                
-                // If phone was locked or closed for more than 5 seconds, trigger secure logout!
-                if (timeGap > 5000) {
-                    sessionStorage.removeItem("ck_user");
-                    sessionStorage.removeItem("lock_timestamp");
-                    location.reload(); // Instantly drops them back into the Secure Username Screen
-                    return;
-                }
+            
+            // Vivo Specific Check: Agar user ne swipe up nahi kiya aur screen hidden hui = Yani pakka POWER LOCK dabaya hai!
+            if (!isAppInSwipedBackground) {
+                // Instantly wipe memory nodes before screen even turns black
+                sessionStorage.removeItem("ck_user");
+                document.getElementById("loginModal").style.display = "flex";
+                document.getElementById("chat").innerHTML = ""; // Clear messages immediately
             }
-            // If it was just a quick app-switch (under 5s), keep them logged in nicely
+        } else {
+            // Screen unlock hone par check karo ki session bacha hai ya mita diya gaya hai
+            let checkUser = sessionStorage.getItem("ck_user");
+            if (!checkUser) {
+                location.reload(); // Hard reset to force login state instantly
+                return;
+            }
             statusRef.update({ state: "online", lastSeen: timeStr });
         }
     });
@@ -430,6 +423,9 @@ function typing() {
 }
 
 function drawMessages() {
+    let checkUser = sessionStorage.getItem("ck_user");
+    if(!checkUser) return; // Secure Guard: Don't draw if logged off
+
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
 
@@ -505,7 +501,7 @@ function sendCurrentMessage() {
     hideReplyPreview();
 }
 
-// 📸 FILE INPUT TRIGGERS
+// 📸 VIVO HARDWARE COMPATIBILITY TRIGGER (Brings up native Camera vs File selector layout)
 function openCamera() { document.getElementById("cameraInput").click(); }
 function openGallery() { document.getElementById("galleryInput").click(); }
 
