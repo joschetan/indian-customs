@@ -194,6 +194,14 @@
     </div>
 </div>
 
+<div id="hardwareLockModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; flex-direction:column; justify-content:center; align-items:center; z-index:99999;">
+    <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
+        <h3 style="color:#075E54; margin-bottom:20px;">🔒 Session Securely Locked</h3>
+        <p style="font-size:14px; color:#555; margin-bottom:20px;">Click below to resume chat safely without data leaks.</p>
+        <button onclick="unlockScreen()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Resume Chat</button>
+    </div>
+</div>
+
 <div class="header">
     <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
@@ -254,15 +262,8 @@ window.onload = function () {
         initChat();
         return;
     }
-    logoutSystem();
-};
-
-function logoutSystem() {
-    USER = "";
-    sessionStorage.removeItem("secure_node_ref");
-    document.getElementById("chat").innerHTML = "";
     document.getElementById("loginModal").style.display = "flex";
-}
+};
 
 function checkSecureLogin() {
     let input = document.getElementById("usernameInput");
@@ -286,9 +287,8 @@ function checkSecureLogin() {
     }
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
-        USER = usernameLower; // 'alex' or 'gemini' stored internally
+        USER = usernameLower; 
         sessionStorage.setItem("secure_node_ref", USER);
-        
         input.value = ""; 
         document.getElementById("loginModal").style.display = "none"; 
         initChat(); 
@@ -303,7 +303,6 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // 1. Listen for Chat Messages
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         messages = [];
@@ -315,10 +314,8 @@ function initChat() {
         drawMessages();
     });
 
-    // 2. Listen for Other User Presence Status (Online/Typing/LastSeen)
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
-        // Find user that is NOT current logged in user
         let otherUserKey = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
         let title = document.getElementById("chatTitle");
         
@@ -365,27 +362,27 @@ function setupPresence() {
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
-            if(USER) {
-                statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
-            }
+            // Background me jate hi offline status set karein (Bina connection tode)
+            if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
-            // Fixed: Background me jane par status write karne ke baad screen clear karein taaki flash issue na ho
+            // SECURITY COVER ACTIVATION: Chat ko instantly gayab karke full body screen lock mask laga dein
             if (!isAppInSwipedBackground && !isSelectingMedia) {
-                document.getElementById("chat").innerHTML = ""; 
-                logoutSystem();
+                document.getElementById("chat").style.opacity = "0"; // Blank out instantly
+                document.getElementById("hardwareLockModal").style.display = "flex";
             }
         } else {
-            let checkUser = sessionStorage.getItem("secure_node_ref");
-            if (!checkUser) {
-                location.reload(); 
-                return;
-            }
-            if(USER) {
-                statusRef.update({ state: "online", lastSeen: timeStr });
-            }
+            // Return hone par online status instantly restore hoga
+            if(USER) statusRef.update({ state: "online", lastSeen: timeStr });
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
     });
+}
+
+function unlockScreen() {
+    // Resume trigger: Jab user custom lock cover par click karega tabhi data samne aayega
+    document.getElementById("hardwareLockModal").style.display = "none";
+    document.getElementById("chat").style.opacity = "1";
+    scrollBottom();
 }
 
 function checkScroll() {
@@ -426,7 +423,6 @@ function drawMessages() {
     messages.forEach(function (msg) {
         let box = document.createElement("div");
         
-        // Dynamic Alignment Check: Jo user logged in hai use hamesha 'me' dikhega
         let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
         box.className = "message " + (isMe ? "me" : "other");
 
@@ -582,41 +578,4 @@ function filterMessages() {
     });
 }
 
-// Fixed: Keep core wipe functionality clean
-function clearChatFromServer() {
-    if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
-    db.ref("chats/messages").set(null);
-}
-
-// Fixed: Permissions matching using uniform lower case
-function showMenu(msg) {
-    let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
-    if (choice === "1") replyMessage(msg.id);
-    if (choice === "2") {
-        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
-        if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
-        let newText = prompt("Edit Message:", msg.message);
-        if (newText && newText.trim() !== "") {
-            db.ref("chats/messages/" + msg.id).update({ message: newText.trim(), edited: "YES" });
-        }
-    }
-    if (choice === "3") {
-        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
-        if (confirm("Delete permanently?")) {
-            db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
-        }
-    }
-}
-
-document.getElementById("chat").addEventListener("dblclick", function(e){
-    let box = e.target.closest(".message");
-    if(!box) return;
-    let textDiv = box.querySelector("div:not(.user):not(.time):not(.replyBox)");
-    if(textDiv) {
-        let match = messages.find(m => m.message === textDiv.innerText);
-        if(match && match.deleted !== "YES") replyMessage(match.id);
-    }
-});
-</script>
-</body>
-</html>
+function clearChatFromServer
