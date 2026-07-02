@@ -250,16 +250,15 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let USER_KEY = ""; // Secure Runtime Key Only (No Real Name Saved)
+let USER = ""; // Will store standardized lower-case name ("alex" / "gemini")
 let messages = [];
 let replyId = "";
 let autoScroll = true;
 let isSelectingMedia = false; 
 
 window.onload = function () {
-    // Page load par check karein agar runtime reference temporary token store me saved hai
-    USER_KEY = sessionStorage.getItem("secure_node_ref");
-    if (USER_KEY) {
+    USER = sessionStorage.getItem("secure_node_ref");
+    if (USER) {
         document.getElementById("loginModal").style.display = "none";
         initChat();
         return;
@@ -268,7 +267,7 @@ window.onload = function () {
 };
 
 function forceSystemWipe() {
-    USER_KEY = "";
+    USER = "";
     sessionStorage.removeItem("secure_node_ref");
     document.getElementById("chat").innerHTML = "";
     document.getElementById("loginModal").style.display = "flex";
@@ -296,17 +295,13 @@ function checkSecureLogin() {
     }
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
-        // --- SECURE SHIELD INITIALIZED ---
-        // Asli name ko instantly hash code (key) me convert kiya
-        if (usernameLower === "gemini") USER_KEY = "NODE_ALPHA";
-        if (usernameLower === "alex") USER_KEY = "NODE_BETA";
+        // FIXED: Database compatibility banaye rakhne ke liye lower-case format save kiya
+        USER = usernameLower;
+        sessionStorage.setItem("secure_node_ref", USER);
         
-        sessionStorage.setItem("secure_node_ref", USER_KEY);
-        
-        // Asli text input field ko clean aur clear memory kiya
+        // Input text field aur temporary strings ko instantly memory se clear kiya
         input.value = ""; 
         enteredName = "";
-        usernameLower = "";
         
         document.getElementById("loginModal").style.display = "none"; 
         initChat(); 
@@ -334,11 +329,12 @@ function initChat() {
 
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
-        let otherNode = Object.keys(statusData).find(u => u !== USER_KEY);
+        // Dono users ke names lower case me check honge
+        let otherUser = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
         let title = document.getElementById("chatTitle");
         
-        if (otherNode) {
-            let info = statusData[otherNode];
+        if (otherUser) {
+            let info = statusData[otherUser];
             if (info.typing === "Typing...") {
                 title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
             } else if (info.state === "online") {
@@ -358,12 +354,12 @@ function initChat() {
 }
 
 function setupPresence() {
-    if(!USER_KEY) return;
-    let statusRef = db.ref("chats/status/" + USER_KEY);
+    if(!USER) return;
+    let statusRef = db.ref("chats/status/" + USER);
     let connectedRef = db.ref(".info/connected");
 
     connectedRef.on("value", function(snap) {
-        if (snap.val() === true && USER_KEY) {
+        if (snap.val() === true && USER) {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
             statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
@@ -377,14 +373,13 @@ function setupPresence() {
 
     document.addEventListener("visibilitychange", function() {
         if (document.hidden) {
-            if(USER_KEY) {
+            if(USER) {
                 let d = new Date();
                 let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
                 statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             }
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
-                // BUG 2 PERMANENT FIX: Purani frames/data ko display se lock se pehle mitayein
                 forceSystemWipe();
             }
         } else {
@@ -418,11 +413,11 @@ function goBottomSmooth() {
 function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
-    if(!USER_KEY) return;
-    db.ref("chats/status/" + USER_KEY).update({ typing: "Typing..." });
+    if(!USER) return;
+    db.ref("chats/status/" + USER).update({ typing: "Typing..." });
     clearTimeout(window.typingTimer);
     window.typingTimer = setTimeout(function () {
-        if(USER_KEY) db.ref("chats/status/" + USER_KEY).update({ typing: "" });
+        if(USER) db.ref("chats/status/" + USER).update({ typing: "" });
     }, 1500);
 }
 
@@ -435,8 +430,10 @@ function drawMessages() {
 
     messages.forEach(function (msg) {
         let box = document.createElement("div");
-        // Safe check using encrypted matching keys instead of strings
-        box.className = "message " + (msg.user === USER_KEY ? "me" : "other");
+        
+        // FIXED: Case-insensitive cross comparison logic for old database nodes
+        let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        box.className = "message " + (isMe ? "me" : "other");
 
         if (msg.deleted === "YES") {
             box.innerHTML = "<div style='color:#aaa;'><i>🚫 This message was deleted</i></div><div class='time'>" + msg.time + "</div>";
@@ -446,8 +443,8 @@ function drawMessages() {
                 if (old) {
                     let reply = document.createElement("div");
                     reply.className = "replyBox";
-                    // Names completely hidden from inside reply strings
-                    reply.innerHTML = "<b>" + (old.user === USER_KEY ? "Me" : "Other") + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
+                    let isOldMe = (old.user && old.user.toLowerCase() === USER.toLowerCase());
+                    reply.innerHTML = "<b>" + (isOldMe ? "Me" : "Other") + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
                     box.appendChild(reply);
                 }
             }
@@ -480,13 +477,13 @@ function drawMessages() {
 function sendCurrentMessage() {
     let input = document.getElementById("message");
     let text = input.value.trim();
-    if (text === "" || !USER_KEY) return;
+    if (text === "" || !USER) return;
 
     let d = new Date();
     let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
     db.ref("chats/messages").push({
-        user: USER_KEY,
+        user: USER, // Saves standardized key compatible with older messages
         type: "TEXT",
         message: text,
         media: "",
@@ -511,7 +508,7 @@ function openGallery() {
 }
 
 function uploadSelectedImage(input) {
-    if (!input.files.length || !USER_KEY) {
+    if (!input.files.length || !USER) {
         isSelectingMedia = false;
         return;
     }
@@ -524,7 +521,7 @@ function uploadSelectedImage(input) {
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
         db.ref("chats/messages").push({
-            user: USER_KEY,
+            user: USER,
             type: "IMAGE",
             message: "",
             media: base64Data,
@@ -555,7 +552,8 @@ function replyMessage(id) {
 
     let box = document.getElementById("replyPreview");
     box.style.display = "flex";
-    box.innerHTML = "<div><b>Replying to " + (msg.user === USER_KEY ? "Me" : "Other") + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
+    let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+    box.innerHTML = "<div><b>Replying to " + (isMsgMe ? "Me" : "Other") + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
                     "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
 }
 
@@ -582,8 +580,9 @@ function filterMessages() {
     chat.innerHTML = "";
     filtered.forEach(function (msg) {
         let box = document.createElement("div");
-        box.className = "message " + (msg.user === USER_KEY ? "me" : "other");
-        box.innerHTML = "<div><b>" + (msg.user === USER_KEY ? "Me" : "Other") + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
+        let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        box.className = "message " + (isMsgMe ? "me" : "other");
+        box.innerHTML = "<div><b>" + (isMsgMe ? "Me" : "Other") + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
         chat.appendChild(box);
     });
 }
@@ -597,7 +596,7 @@ function showMenu(msg) {
     let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
     if (choice === "1") replyMessage(msg.id);
     if (choice === "2") {
-        if (msg.user !== USER_KEY) { alert("Access Denied: Not your message."); return; }
+        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
         if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
         let newText = prompt("Edit Message:", msg.message);
         if (newText && newText.trim() !== "") {
@@ -605,7 +604,7 @@ function showMenu(msg) {
         }
     }
     if (choice === "3") {
-        if (msg.user !== USER_KEY) { alert("Access Denied: Not your message."); return; }
+        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
         if (confirm("Delete permanently?")) {
             db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
         }
