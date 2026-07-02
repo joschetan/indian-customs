@@ -256,12 +256,20 @@ let autoScroll = true;
 let isSelectingMedia = false; 
 
 window.onload = function () {
+    // Session restore system optimized
     USER = sessionStorage.getItem("secure_node_ref");
     if (USER) {
-        document.getElementById("loginModal").style.display = "none";
-        initChat();
-        return;
+        let savedNameLower = USER.trim().toLowerCase();
+        if (savedNameLower === "gemini" || savedNameLower === "alex") {
+            document.getElementById("loginModal").style.display = "none";
+            initChat();
+            return;
+        }
     }
+    // Agar valid user nahi hai toh clean fallback par jaye bina system crash kiye
+    USER = "";
+    sessionStorage.removeItem("secure_node_ref");
+    document.getElementById("chat").innerHTML = "";
     document.getElementById("loginModal").style.display = "flex";
 };
 
@@ -358,224 +366,4 @@ function setupPresence() {
     window.onfocus = function() { isAppInSwipedBackground = false; };
 
     document.addEventListener("visibilitychange", function() {
-        let d = new Date();
-        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-        
-        if (document.hidden) {
-            // Background me jate hi offline status set karein (Bina connection tode)
-            if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
-            
-            // SECURITY COVER ACTIVATION: Chat ko instantly gayab karke full body screen lock mask laga dein
-            if (!isAppInSwipedBackground && !isSelectingMedia) {
-                document.getElementById("chat").style.opacity = "0"; // Blank out instantly
-                document.getElementById("hardwareLockModal").style.display = "flex";
-            }
-        } else {
-            // Return hone par online status instantly restore hoga
-            if(USER) statusRef.update({ state: "online", lastSeen: timeStr });
-            setTimeout(() => { isSelectingMedia = false; }, 1000);
-        }
-    });
-}
-
-function unlockScreen() {
-    // Resume trigger: Jab user custom lock cover par click karega tabhi data samne aayega
-    document.getElementById("hardwareLockModal").style.display = "none";
-    document.getElementById("chat").style.opacity = "1";
-    scrollBottom();
-}
-
-function checkScroll() {
-    let chat = document.getElementById("chat");
-    autoScroll = (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 80);
-    if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
-}
-
-function scrollBottom() {
-    if (!autoScroll) return;
-    document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
-}
-
-function goBottomSmooth() {
-    autoScroll = true; 
-    document.getElementById("netScrollBtn").style.display = "none"; 
-    document.getElementById("chat").scrollTo({ top: document.getElementById("chat").scrollHeight, behavior: 'smooth' });
-}
-
-function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
-
-function typing() {
-    if(!USER) return;
-    db.ref("chats/status/" + USER).update({ typing: "Typing..." });
-    clearTimeout(window.typingTimer);
-    window.typingTimer = setTimeout(function () {
-        if(USER) db.ref("chats/status/" + USER).update({ typing: "" });
-    }, 1500);
-}
-
-function drawMessages() {
-    let checkUser = sessionStorage.getItem("secure_node_ref");
-    if(!checkUser) return; 
-
-    let chat = document.getElementById("chat");
-    chat.innerHTML = "";
-
-    messages.forEach(function (msg) {
-        let box = document.createElement("div");
-        
-        let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
-        box.className = "message " + (isMe ? "me" : "other");
-
-        if (msg.deleted === "YES") {
-            box.innerHTML = "<div style='color:#aaa;'><i>🚫 This message was deleted</i></div><div class='time'>" + msg.time + "</div>";
-        } else {
-            if (msg.reply) {
-                let old = messages.find(m => m.id === msg.reply);
-                if (old) {
-                    let reply = document.createElement("div");
-                    reply.className = "replyBox";
-                    let isOldMe = (old.user && old.user.toLowerCase() === USER.toLowerCase());
-                    reply.innerHTML = "<b>" + (isOldMe ? "Me" : "Other") + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
-                    box.appendChild(reply);
-                }
-            }
-            
-            if (msg.type === "IMAGE") {
-                let img = document.createElement("img");
-                img.src = msg.media;
-                img.className = "chatImage";
-                img.onclick = function () { openImage(msg.media); };
-                box.appendChild(img);
-            } else {
-                let text = document.createElement("div");
-                text.innerText = msg.message;
-                box.appendChild(text);
-            }
-
-            let time = document.createElement("div");
-            time.className = "time";
-            time.innerText = msg.time + (msg.edited ? " • Edited" : "");
-            box.appendChild(time);
-        }
-
-        box.oncontextmenu = function (e) { e.preventDefault(); showMenu(msg); };
-        chat.appendChild(box);
-    });
-
-    scrollBottom();
-}
-
-function sendCurrentMessage() {
-    let input = document.getElementById("message");
-    let text = input.value.trim();
-    if (text === "" || !USER) return;
-
-    let d = new Date();
-    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-
-    db.ref("chats/messages").push({
-        user: USER, 
-        type: "TEXT",
-        message: text,
-        media: "",
-        time: timeStr,
-        reply: replyId || "",
-        edited: "",
-        deleted: ""
-    });
-
-    input.value = "";
-    replyId = "";
-    hideReplyPreview();
-}
-
-function openCamera() { 
-    isSelectingMedia = true; 
-    document.getElementById("cameraInput").click(); 
-}
-function openGallery() { 
-    isSelectingMedia = true; 
-    document.getElementById("galleryInput").click(); 
-}
-
-function uploadSelectedImage(input) {
-    if (!input.files.length || !USER) {
-        isSelectingMedia = false;
-        return;
-    }
-    let file = input.files[0];
-    let reader = new FileReader();
-
-    reader.onload = function (e) {
-        let base64Data = e.target.result;
-        let d = new Date();
-        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-
-        db.ref("chats/messages").push({
-            user: USER,
-            type: "IMAGE",
-            message: "",
-            media: base64Data,
-            time: timeStr,
-            reply: replyId || "",
-            edited: "",
-            deleted: ""
-        });
-        
-        input.value = "";
-        replyId = "";
-        hideReplyPreview();
-        isSelectingMedia = false; 
-    };
-    reader.readAsDataURL(file);
-}
-
-function openImage(url) {
-    document.getElementById("viewerImage").src = url;
-    document.getElementById("imageViewer").style.display = "flex";
-}
-function closeImage() { document.getElementById("imageViewer").style.display = "none"; }
-
-function replyMessage(id) {
-    replyId = id;
-    let msg = messages.find(m => m.id === id);
-    if (!msg) return;
-
-    let box = document.getElementById("replyPreview");
-    box.style.display = "flex";
-    let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
-    box.innerHTML = "<div><b>Replying to " + (isMsgMe ? "Me" : "Other") + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
-                    "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
-}
-
-function hideReplyPreview() { replyId = ""; document.getElementById("replyPreview").style.display = "none"; }
-
-function toggleSearch() {
-    let bar = document.getElementById("searchBar");
-    if(bar.style.display === "none") {
-        bar.style.display = "inline-block";
-        bar.focus();
-    } else {
-        bar.style.display = "none";
-        bar.value = "";
-        drawMessages();
-    }
-}
-
-function filterMessages() {
-    let query = document.getElementById("searchBar").value.toLowerCase();
-    if(query === "") { drawMessages(); return; }
-    let filtered = messages.filter(m => m.deleted !== "YES" && m.message && m.message.toLowerCase().includes(query));
-    
-    let chat = document.getElementById("chat");
-    chat.innerHTML = "";
-    filtered.forEach(function (msg) {
-        let box = document.createElement("div");
-        let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
-        box.className = "message " + (isMsgMe ? "me" : "other");
-        box.innerHTML = "<div><b>" + (isMsgMe ? "Me" : "Other") + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
-        chat.appendChild(box);
-    });
-}
-
-function clearChatFromServer
+        let d
