@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
   <link rel="icon" type="image/png" href="favicon.png">
-  <!-- Firebase Core SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -179,7 +178,6 @@
 </head>
 <body>
 
-<!-- Secure Login Screen Modal -->
 <div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
@@ -197,7 +195,6 @@
     </div>
 </div>
 
-<!-- Header -->
 <div class="header">
     <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
@@ -207,18 +204,14 @@
     </div>
 </div>
 
-<!-- Reply Preview Bar -->
 <div id="replyPreview"></div>
 
-<!-- Chat Area Box -->
 <div id="chat"></div>
 
-<!-- Floating Scroll Down Alert Button -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
-  ⇣ New Message
+   ⇣ New Message
 </button>
 
-<!-- Footer Controls Panel -->
 <div class="footer">
     <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
     <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
@@ -226,11 +219,9 @@
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
-<!-- Universal Web Inputs for Maximum Device Fallback compatibility -->
-<input type="file" id="cameraInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
+<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="uploadSelectedImage(this)">
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 
-<!-- Full Screen Image Lightbox Viewer -->
 <div id="imageViewer" onclick="closeImage()">
     <img id="viewerImage">
 </div>
@@ -255,6 +246,7 @@ let USER = "";
 let messages = [];
 let replyId = "";
 let autoScroll = true;
+let isSelectingMedia = false; // BUG 1 FIXED: Media flow flag status tracker
 
 window.onload = function () {
     USER = sessionStorage.getItem("ck_user");
@@ -357,10 +349,8 @@ function setupPresence() {
         }
     });
 
-    // 🎯 STRICT SCREEN LOCK SENSOR (Fires instantly before OS pauses execution)
     let isAppInSwipedBackground = false;
 
-    // A. Detect if user intentionally did Swipe Up to go to home screen
     window.onblur = function() {
         isAppInSwipedBackground = true; 
     };
@@ -376,21 +366,22 @@ function setupPresence() {
         if (document.hidden) {
             statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
-            // Vivo Specific Check: Agar user ne swipe up nahi kiya aur screen hidden hui = Yani pakka POWER LOCK dabaya hai!
-            if (!isAppInSwipedBackground) {
-                // Instantly wipe memory nodes before screen even turns black
+            // BUG 1 FIXED: Media fetch karte time session wipe hone se roka gaya hai
+            if (!isAppInSwipedBackground && !isSelectingMedia) {
+                // BUG 2 FIXED: Clear text values BEFORE forcing modal to stop data leaks
+                document.getElementById("chat").innerHTML = ""; 
                 sessionStorage.removeItem("ck_user");
                 document.getElementById("loginModal").style.display = "flex";
-                document.getElementById("chat").innerHTML = ""; // Clear messages immediately
             }
         } else {
-            // Screen unlock hone par check karo ki session bacha hai ya mita diya gaya hai
             let checkUser = sessionStorage.getItem("ck_user");
             if (!checkUser) {
-                location.reload(); // Hard reset to force login state instantly
+                location.reload(); 
                 return;
             }
             statusRef.update({ state: "online", lastSeen: timeStr });
+            // Reset media selection lock state upon application view return
+            setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
     });
 }
@@ -424,7 +415,7 @@ function typing() {
 
 function drawMessages() {
     let checkUser = sessionStorage.getItem("ck_user");
-    if(!checkUser) return; // Secure Guard: Don't draw if logged off
+    if(!checkUser) return; 
 
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
@@ -501,12 +492,21 @@ function sendCurrentMessage() {
     hideReplyPreview();
 }
 
-// 📸 VIVO HARDWARE COMPATIBILITY TRIGGER (Brings up native Camera vs File selector layout)
-function openCamera() { document.getElementById("cameraInput").click(); }
-function openGallery() { document.getElementById("galleryInput").click(); }
+// 📸 BUG 1 & 3 FIXED: Added state markers to prevent logging out during camera/gallery switch
+function openCamera() { 
+    isSelectingMedia = true; 
+    document.getElementById("cameraInput").click(); 
+}
+function openGallery() { 
+    isSelectingMedia = true; 
+    document.getElementById("galleryInput").click(); 
+}
 
 function uploadSelectedImage(input) {
-    if (!input.files.length) return;
+    if (!input.files.length) {
+        isSelectingMedia = false;
+        return;
+    }
     let file = input.files[0];
     let reader = new FileReader();
 
@@ -529,6 +529,7 @@ function uploadSelectedImage(input) {
         input.value = "";
         replyId = "";
         hideReplyPreview();
+        isSelectingMedia = false; // Unlock presence sensor
     };
     reader.readAsDataURL(file);
 }
