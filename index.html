@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
   <link rel="icon" type="image/png" href="favicon.png">
-  <!-- Firebase Core SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -180,7 +179,6 @@
 </head>
 <body>
 
-<!-- Secure Parda Gateway Layer -->
 <div id="secureGatewayScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:20000;">
     <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
@@ -189,7 +187,6 @@
     </div>
 </div>
 
-<!-- Username Inputs Screen -->
 <div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
@@ -207,7 +204,6 @@
     </div>
 </div>
 
-<!-- Header -->
 <div class="header">
     <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
@@ -217,28 +213,22 @@
     </div>
 </div>
 
-<!-- Reply Preview Bar -->
 <div id="replyPreview"></div>
 
-<!-- Chat Area Box -->
 <div id="chat" style="opacity: 0;"></div>
 
-<!-- Floating Scroll Down Alert Button -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
    ⇣ New Message
 </button>
 
-<!-- Footer Controls Panel -->
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
     <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
-<!-- Native Input File Pickers -->
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 
-<!-- Full Screen Image Lightbox Viewer -->
 <div id="imageViewer" onclick="closeImage()">
     <img id="viewerImage">
 </div>
@@ -256,7 +246,6 @@ const firebaseConfig = {
   databaseURL: "https://indian-customs-c6a8f-default-rtdb.firebaseio.com"
 };
 
-// FIXED: Global runtime declaration ensures instances don't drop out on mobile viewports
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
@@ -331,11 +320,13 @@ function checkSecureLogin() {
         appScreenLocked = false;
         document.getElementById("chat").style.opacity = "1";
         
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
         if (typeof window.presencePresenceInitialized === "undefined") {
             initChat(); 
         } else {
-            let d = new Date();
-            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+            // FORCE LOCK STATE SYNC: Re-establish status nodes to active immediately upon custom authorization bounds
             db.ref("chats/status/" + USER).update({ state: "online", lastSeen: timeStr });
             drawMessages();
         }
@@ -401,8 +392,6 @@ function initChat() {
 
 function setupPresence() {
     let syncUserKey = USER || sessionStorage.getItem("ck_user");
-    if(!syncUserKey) return;
-    
     let statusRef = db.ref("chats/status/" + syncUserKey);
     let connectedRef = db.ref(".info/connected");
 
@@ -437,6 +426,10 @@ function setupPresence() {
             if (!checkUser) {
                 location.reload(); 
                 return;
+            }
+            // FIXED UNVEIL LOGIC: If returning user identity matches authorized layout, force database online state update
+            if(!appScreenLocked && syncUserKey) {
+                statusRef.update({ state: "online", lastSeen: timeStr });
             }
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
@@ -563,7 +556,6 @@ function openGallery() {
     document.getElementById("galleryInput").click(); 
 }
 
-// Image handling components
 function uploadSelectedImage(input) {
     let checkUser = sessionStorage.getItem("ck_user");
     if (!input.files.length || appScreenLocked || !checkUser) {
@@ -628,6 +620,7 @@ function toggleSearch() {
     }
 }
 
+// Global scope filters
 function filterMessages() {
     let query = document.getElementById("searchBar").value.toLowerCase();
     if(query === "") { drawMessages(); return; }
