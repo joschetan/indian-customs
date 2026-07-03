@@ -213,13 +213,11 @@
 </button>
 
 <div class="footer">
-    <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
-    <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
+    <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
-<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="uploadSelectedImage(this)">
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 
 <div id="imageViewer" onclick="closeImage()">
@@ -246,7 +244,8 @@ let USER = "";
 let messages = [];
 let replyId = "";
 let autoScroll = true;
-let isSelectingMedia = false; // BUG 1 FIXED: Media flow flag status tracker
+let isSelectingMedia = false; 
+let initialLoadCount = -1;
 
 window.onload = function () {
     USER = sessionStorage.getItem("ck_user");
@@ -299,8 +298,10 @@ function checkSecureLogin() {
 }
 
 function initChat() {
+    // Sync live messages + calculate length variance for scroll alert trigger
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
+        let oldLength = messages.length;
         messages = [];
         if (data) {
             Object.keys(data).forEach(key => {
@@ -308,6 +309,16 @@ function initChat() {
             });
         }
         drawMessages();
+
+        // KEYBOARD & ALERT FIX: Monitor list variance to slide up floating panel
+        if (initialLoadCount === -1) {
+            initialLoadCount = messages.length; 
+        } else if (messages.length > oldLength && !autoScroll) {
+            let lastMsg = messages[messages.length - 1];
+            if (lastMsg && lastMsg.user !== USER) {
+                document.getElementById("netScrollBtn").style.display = "block";
+            }
+        }
     });
 
     db.ref("chats/status").on("value", function(snapshot) {
@@ -335,7 +346,6 @@ function initChat() {
     setupPresence();
 }
 
-// 🔐 EXPERT HARDWARE LOCK DETECTOR & BACKGROUND CONTROLLER FOR VIVO
 function setupPresence() {
     let statusRef = db.ref("chats/status/" + USER);
     let connectedRef = db.ref(".info/connected");
@@ -358,7 +368,6 @@ function setupPresence() {
         isAppInSwipedBackground = false; 
     };
 
-    // B. Main Hardware Visibility Loop
     document.addEventListener("visibilitychange", function() {
         let d = new Date();
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
@@ -366,9 +375,7 @@ function setupPresence() {
         if (document.hidden) {
             statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
-            // BUG 1 FIXED: Media fetch karte time session wipe hone se roka gaya hai
             if (!isAppInSwipedBackground && !isSelectingMedia) {
-                // BUG 2 FIXED: Clear text values BEFORE forcing modal to stop data leaks
                 document.getElementById("chat").innerHTML = ""; 
                 sessionStorage.removeItem("ck_user");
                 document.getElementById("loginModal").style.display = "flex";
@@ -380,7 +387,6 @@ function setupPresence() {
                 return;
             }
             statusRef.update({ state: "online", lastSeen: timeStr });
-            // Reset media selection lock state upon application view return
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
     });
@@ -403,6 +409,7 @@ function goBottomSmooth() {
     document.getElementById("chat").scrollTo({ top: document.getElementById("chat").scrollHeight, behavior: 'smooth' });
 }
 
+// Intercept desktop/mobile enter events to call runtime submission
 function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
@@ -490,13 +497,11 @@ function sendCurrentMessage() {
     input.value = "";
     replyId = "";
     hideReplyPreview();
+
+    // KEYBOARD DRIVEN SYSTEM FIXED: Refocus back instantly on text string node to avoid panel blur
+    setTimeout(() => { input.focus(); }, 15);
 }
 
-// 📸 BUG 1 & 3 FIXED: Added state markers to prevent logging out during camera/gallery switch
-function openCamera() { 
-    isSelectingMedia = true; 
-    document.getElementById("cameraInput").click(); 
-}
 function openGallery() { 
     isSelectingMedia = true; 
     document.getElementById("galleryInput").click(); 
@@ -529,7 +534,7 @@ function uploadSelectedImage(input) {
         input.value = "";
         replyId = "";
         hideReplyPreview();
-        isSelectingMedia = false; // Unlock presence sensor
+        isSelectingMedia = false; 
     };
     reader.readAsDataURL(file);
 }
@@ -538,6 +543,7 @@ function openImage(url) {
     document.getElementById("viewerImage").src = url;
     document.getElementById("imageViewer").style.display = "flex";
 }
+// Full layer close lightbox reference
 function closeImage() { document.getElementById("imageViewer").style.display = "none"; }
 
 function replyMessage(id) {
