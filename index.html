@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
   <link rel="icon" type="image/png" href="favicon.png">
+  <!-- Firebase Core SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -177,6 +178,7 @@
 </head>
 <body>
 
+<!-- INITIAL ENTRY GATEWAY LAYER -->
 <div id="secureGatewayScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:20000;">
     <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
@@ -185,6 +187,7 @@
     </div>
 </div>
 
+<!-- Username Verification Screen -->
 <div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
@@ -202,6 +205,7 @@
     </div>
 </div>
 
+<!-- Header -->
 <div class="header">
     <div id="chatTitle">Indian Customs</div>
     <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
@@ -211,24 +215,31 @@
     </div>
 </div>
 
+<!-- Reply Preview Bar -->
 <div id="replyPreview"></div>
 
+<!-- Chat Area Box -->
 <div id="chat"></div>
 
+<!-- Floating Scroll Down Alert Button -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
    ⇣ New Message
 </button>
 
+<!-- Footer Controls Panel -->
 <div class="footer">
     <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
     <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <button onmousedown="event.preventDefault();" onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
+    <!-- FIXED: Takraav rokne ke liye onmousedown ko clean kiya aur regular function integration di -->
+    <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
+<!-- Universal Web Inputs for Maximum Device Fallback compatibility -->
 <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="uploadSelectedImage(this)">
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
 
+<!-- Full Screen Image Lightbox Viewer -->
 <div id="imageViewer" onclick="closeImage()">
     <img id="viewerImage">
 </div>
@@ -267,12 +278,10 @@ window.onload = function () {
             return;
         }
     }
-    // Hard mask on gateway view state to completely stop background leakage
     document.getElementById("secureGatewayScreen").style.display = "flex";
     document.getElementById("loginModal").style.display = "none";
 };
 
-// Sequence Trigger: Gateway screen button click leads to username verification layout
 function triggerLoginInputSequence() {
     document.getElementById("secureGatewayScreen").style.display = "none";
     document.getElementById("loginModal").style.display = "flex";
@@ -304,7 +313,6 @@ function checkSecureLogin() {
         USER = usernameLower; 
         sessionStorage.setItem("ck_user", USER); 
         
-        // SECURITY UPDATE: Instantly wipe elements to intercept system caching image snap leaks
         input.value = ""; 
         document.getElementById("loginModal").style.display = "none"; 
         initChat(); 
@@ -319,7 +327,6 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // Synchronize Real-Time Messages & Message Notification Alerts
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -331,7 +338,6 @@ function initChat() {
         }
         drawMessages();
 
-        // NOTIFICATION LOGIC CRITERIA: Show alert button if scrolled up and new other entry registers
         if (initialLoadCount === -1) {
             initialLoadCount = messages.length; 
         } else if (messages.length > oldLength && !autoScroll) {
@@ -392,7 +398,6 @@ function setupPresence() {
         if (document.hidden) {
             if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
-            // AUTOMATIC FORCE WIPE ON LOCK: Wipes session and moves strictly back to "Press to Login" screen
             if (!isAppInSwipedBackground && !isSelectingMedia) {
                 document.getElementById("chat").innerHTML = ""; 
                 sessionStorage.removeItem("ck_user");
@@ -414,4 +419,234 @@ function setupPresence() {
 function checkScroll() {
     let chat = document.getElementById("chat");
     autoScroll = (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 80);
-    if (autoScroll) document.getElementById("net
+    if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
+}
+
+// Fixed smooth scroll behavior for notification response
+function scrollBottom() {
+    if (!autoScroll) return;
+    document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+}
+
+function goBottomSmooth() {
+    autoScroll = true; 
+    document.getElementById("netScrollBtn").style.display = "none"; 
+    document.getElementById("chat").scrollTo({ top: document.getElementById("chat").scrollHeight, behavior: 'smooth' });
+}
+
+function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
+
+function typing() {
+    if(!USER) return;
+    db.ref("chats/status/" + USER).update({ typing: "Typing..." });
+    clearTimeout(window.typingTimer);
+    window.typingTimer = setTimeout(function () {
+        if(USER) db.ref("chats/status/" + USER).update({ typing: "" });
+    }, 1500);
+}
+
+function drawMessages() {
+    let checkUser = sessionStorage.getItem("ck_user");
+    if(!checkUser) return; 
+
+    let chat = document.getElementById("chat");
+    chat.innerHTML = "";
+
+    messages.forEach(function (msg) {
+        let box = document.createElement("div");
+        
+        let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        box.className = "message " + (isMe ? "me" : "other");
+
+        if (msg.deleted === "YES") {
+            box.innerHTML = "<div style='color:#aaa;'><i>🚫 This message was deleted</i></div><div class='time'>" + msg.time + "</div>";
+        } else {
+            if (msg.reply) {
+                let old = messages.find(m => m.id === msg.reply);
+                if (old) {
+                    let reply = document.createElement("div");
+                    reply.className = "replyBox";
+                    let isOldMe = (old.user && old.user.toLowerCase() === USER.toLowerCase());
+                    reply.innerHTML = "<b>" + (isOldMe ? "Me" : "Other") + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
+                    box.appendChild(reply);
+                }
+            }
+            
+            if (msg.type === "IMAGE") {
+                let img = document.createElement("img");
+                img.src = msg.media;
+                img.className = "chatImage";
+                img.onclick = function () { openImage(msg.media); };
+                box.appendChild(img);
+            } else {
+                let text = document.createElement("div");
+                text.innerText = msg.message;
+                box.appendChild(text);
+            }
+
+            let time = document.createElement("div");
+            time.className = "time";
+            time.innerText = msg.time + (msg.edited ? " • Edited" : "");
+            box.appendChild(time);
+        }
+
+        box.oncontextmenu = function (e) { e.preventDefault(); showMenu(msg); };
+        chat.appendChild(box);
+    });
+
+    scrollBottom();
+}
+
+function sendCurrentMessage() {
+    let input = document.getElementById("message");
+    let text = input.value.trim();
+    if (text === "" || !USER) return;
+
+    let d = new Date();
+    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
+    db.ref("chats/messages").push({
+        user: USER,
+        type: "TEXT",
+        message: text,
+        media: "",
+        time: timeStr,
+        reply: replyId || "",
+        edited: "",
+        deleted: ""
+    });
+
+    input.value = "";
+    replyId = "";
+    hideReplyPreview();
+
+    // KEYBOARD RETENTION SYSTEM: Input focus maintain karne ka non-blocking tareeka
+    setTimeout(() => { input.focus(); }, 15);
+}
+
+function openCamera() { 
+    isSelectingMedia = true; 
+    document.getElementById("cameraInput").click(); 
+}
+function openGallery() { 
+    isSelectingMedia = true; 
+    document.getElementById("galleryInput").click(); 
+}
+
+function uploadSelectedImage(input) {
+    if (!input.files.length || !USER) {
+        isSelectingMedia = false;
+        return;
+    }
+    let file = input.files[0];
+    let reader = new FileReader();
+
+    reader.onload = function (e) {
+        let base64Data = e.target.result;
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
+        db.ref("chats/messages").push({
+            user: USER,
+            type: "IMAGE",
+            message: "",
+            media: base64Data,
+            time: timeStr,
+            reply: replyId || "",
+            edited: "",
+            deleted: ""
+        });
+        
+        input.value = "";
+        replyId = "";
+        hideReplyPreview();
+        isSelectingMedia = false; 
+    };
+    reader.readAsDataURL(file);
+}
+
+function openImage(url) {
+    document.getElementById("viewerImage").src = url;
+    document.getElementById("imageViewer").style.display = "flex";
+}
+function closeImage() { document.getElementById("imageViewer").style.display = "none"; }
+
+function replyMessage(id) {
+    replyId = id;
+    let msg = messages.find(m => m.id === id);
+    if (!msg) return;
+
+    let box = document.getElementById("replyPreview");
+    box.style.display = "flex";
+    let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+    box.innerHTML = "<div><b>Replying to " + (isMsgMe ? "Me" : "Other") + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
+                    "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
+}
+
+// Preview cleaner
+function hideReplyPreview() { replyId = ""; document.getElementById("replyPreview").style.display = "none"; }
+
+function toggleSearch() {
+    let bar = document.getElementById("searchBar");
+    if(bar.style.display === "none") {
+        bar.style.display = "inline-block";
+        bar.focus();
+    } else {
+        bar.style.display = "none";
+        bar.value = "";
+        drawMessages();
+    }
+}
+
+function filterMessages() {
+    let query = document.getElementById("searchBar").value.toLowerCase();
+    if(query === "") { drawMessages(); return; }
+    let filtered = messages.filter(m => m.deleted !== "YES" && m.message && m.message.toLowerCase().includes(query));
+    
+    let chat = document.getElementById("chat");
+    chat.innerHTML = "";
+    filtered.forEach(function (msg) {
+        let box = document.createElement("div");
+        let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        box.className = "message " + (isMsgMe ? "me" : "other");
+        box.innerHTML = "<div><b>" + (isMsgMe ? "Me" : "Other") + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
+        chat.appendChild(box);
+    });
+}
+
+function clearChatFromServer() {
+    if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
+    db.ref("chats/messages").set(null);
+}
+
+function showMenu(msg) {
+    let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
+    if (choice === "1") replyMessage(msg.id);
+    if (choice === "2") {
+        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
+        if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
+        let newText = prompt("Edit Message:", msg.message);
+        if (newText && newText.trim() !== "") {
+            db.ref("chats/messages/" + msg.id).update({ message: newText.trim(), edited: "YES" });
+        }
+    }
+    if (choice === "3") {
+        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
+        if (confirm("Delete permanently?")) {
+            db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
+        }
+    }
+}
+
+document.getElementById("chat").addEventListener("dblclick", function(e){
+    let box = e.target.closest(".message");
+    if(!box) return;
+    let textDiv = box.querySelector("div:not(.user):not(.time):not(.replyBox)");
+    if(textDiv) {
+        let match = messages.find(m => m.message === textDiv.innerText);
+        if(match && match.deleted !== "YES") replyMessage(match.id);
+    }
+});
+</script>
+</body>
+</html>
