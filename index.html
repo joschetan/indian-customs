@@ -186,7 +186,7 @@
             type="text" 
             id="usernameInput" 
             name="disabled-autofill" 
-            autocomplete="new-password" 
+            autocomplete="off" 
             spellcheck="false"
             placeholder="Enter Username..." 
             style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
@@ -212,7 +212,7 @@
 <!-- Chat Area Box -->
 <div id="chat"></div>
 
-<!-- Floating Scroll Down Alert Button (New Message Alert Trigger) -->
+<!-- Floating Scroll Down Alert Button -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
    ⇣ New Message
 </button>
@@ -258,12 +258,10 @@ let isSelectingMedia = false;
 let initialLoadCount = -1;
 
 window.onload = function () {
-    // Standard uniform string lookup keys
     USER = sessionStorage.getItem("ck_user") || localStorage.getItem("ck_user");
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
-            USER = savedNameLower; // Sync direct to low case standard
             document.getElementById("loginModal").style.display = "none";
             initChat();
             return;
@@ -294,7 +292,8 @@ function checkSecureLogin() {
     }
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
-        USER = usernameLower; 
+        // FIXED: Pure capital database values ko secure connect karne ke liye case uniform rakha
+        USER = enteredName; 
         sessionStorage.setItem("ck_user", USER);
         localStorage.setItem("ck_user", USER); 
         document.getElementById("loginModal").style.display = "none"; 
@@ -310,7 +309,7 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // 1. Live Messages listener
+    // 1. Live messages sync
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -332,11 +331,11 @@ function initChat() {
         }
     });
 
-    // 2. FIXED STATUS LOOP: Pure low-case matching parameters for dynamic sync
+    // 2. FIXED PERSISTENT LOOP: Robust cross case comparison loops for Online / Typing / Last Seen
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
         
-        // Find other user key directly by ignoring local uniform key mapping
+        // Find other node key safely by matching lower case bounds
         let otherUserKey = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
         let title = document.getElementById("chatTitle");
         
@@ -397,6 +396,7 @@ function checkScroll() {
     if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
 }
 
+// Keep connection state smooth on dynamic bounds
 function scrollBottom() {
     if (!autoScroll) return;
     document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
@@ -493,7 +493,7 @@ function sendCurrentMessage() {
     replyId = "";
     hideReplyPreview();
 
-    // Keyboard lock buffer logic
+    // Soft focus to lock virtual keyboard panel active
     setTimeout(() => { input.focus(); }, 15);
 }
 
