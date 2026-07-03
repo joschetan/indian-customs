@@ -62,6 +62,7 @@
       overflow-y: auto;
       padding: 12px;
       scroll-behavior: smooth;
+      transition: opacity 0.05s ease-in-out;
     }
     /* Message Bubble */
     .message {
@@ -178,9 +179,17 @@
 </head>
 <body>
 
-<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
+<div id="secureGatewayScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:20000;">
+    <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
+        <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:25px;">Terminal session initialization required.</p>
+        <button onclick="triggerLoginInputSequence()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🔓 Press to Login</button>
+    </div>
+</div>
+
+<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
+        <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
         <input 
             type="text" 
             id="usernameInput" 
@@ -191,7 +200,7 @@
             style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
         >
         <p id="errorMessage" style="color:red; font-size:13px; margin-bottom:15px; display:none; font-weight:bold;"></p>
-        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Login</button>
+        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Verify Identity</button>
     </div>
 </div>
 
@@ -215,7 +224,7 @@
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <button onclick="handleSendClick(event)" class="send-btn" title="Send">➤</button>
+    <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
@@ -246,20 +255,30 @@ let replyId = "";
 let autoScroll = true;
 let isSelectingMedia = false; 
 let initialLoadCount = -1;
+let appScreenLocked = true; // Security gate layout marker flag
 
 window.onload = function () {
     USER = sessionStorage.getItem("ck_user");
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
+            // Direct mask active status forced to stop millisecond leak references
+            document.getElementById("secureGatewayScreen").style.display = "flex";
             document.getElementById("loginModal").style.display = "none";
             initChat();
             return;
         }
     }
     sessionStorage.removeItem("ck_user");
-    document.getElementById("loginModal").style.display = "flex";
+    document.getElementById("secureGatewayScreen").style.display = "flex";
+    document.getElementById("loginModal").style.display = "none";
 };
+
+function triggerLoginInputSequence() {
+    document.getElementById("secureGatewayScreen").style.display = "none";
+    document.getElementById("loginModal").style.display = "flex";
+    document.getElementById("usernameInput").focus();
+}
 
 function checkSecureLogin() {
     let input = document.getElementById("usernameInput");
@@ -283,10 +302,32 @@ function checkSecureLogin() {
     }
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
-        USER = enteredName; 
+        // Validation check if session returns from a background state lock trigger
+        let structuralCheck = sessionStorage.getItem("ck_user");
+        if(structuralCheck && structuralCheck.toLowerCase() !== usernameLower) {
+            errorBox.innerText = "❌ Mismatch Error: Unauthorized Session Identity!";
+            errorBox.style.display = "block";
+            input.value = "";
+            return;
+        }
+
+        USER = usernameLower; 
         sessionStorage.setItem("ck_user", USER); 
+        
+        input.value = ""; // Instantly empty raw fields to block caching snapshots
         document.getElementById("loginModal").style.display = "none"; 
-        initChat(); 
+        appScreenLocked = false;
+        document.getElementById("chat").style.opacity = "1";
+        
+        if (typeof window.presencePresenceInitialized === "undefined") {
+            initChat(); 
+        } else {
+            // Restore active state switch onto database node
+            let d = new Date();
+            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+            db.ref("chats/status/" + USER).update({ state: "online", lastSeen: timeStr });
+            drawMessages();
+        }
         return;
     }
 
@@ -298,6 +339,8 @@ function checkSecureLogin() {
 }
 
 function initChat() {
+    window.presencePresenceInitialized = true;
+
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -307,7 +350,8 @@ function initChat() {
                 messages.push({ id: key, ...data[key] });
             });
         }
-        drawMessages();
+        // Only draw if explicit security layout code lets bypass
+        if(!appScreenLocked) drawMessages();
 
         if (initialLoadCount === -1) {
             initialLoadCount = messages.length; 
@@ -349,34 +393,33 @@ function setupPresence() {
     let connectedRef = db.ref(".info/connected");
 
     connectedRef.on("value", function(snap) {
-        if (snap.val() === true) {
+        if (snap.val() === true && USER) {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
             statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
-            statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
+            // Set online only if layer sequence validates true
+            if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
         }
     });
 
     let isAppInSwipedBackground = false;
-
-    window.onblur = function() {
-        isAppInSwipedBackground = true; 
-    };
-    window.onfocus = function() {
-        isAppInSwipedBackground = false; 
-    };
+    window.onblur = function() { isAppInSwipedBackground = true; };
+    window.onfocus = function() { isAppInSwipedBackground = false; };
 
     document.addEventListener("visibilitychange", function() {
         let d = new Date();
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
-            statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
+            // LOCK SEQUENCE: Instantly turn offline on database node to protect privacy rules
+            if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
-                document.getElementById("chat").innerHTML = ""; 
-                sessionStorage.removeItem("ck_user");
-                document.getElementById("loginModal").style.display = "flex";
+                // Instantly veil the chat frame to opacity 0 before mobile framework creates image caches
+                document.getElementById("chat").style.opacity = "0"; 
+                appScreenLocked = true;
+                document.getElementById("loginModal").style.display = "none";
+                document.getElementById("secureGatewayScreen").style.display = "flex";
             }
         } else {
             let checkUser = sessionStorage.getItem("ck_user");
@@ -384,7 +427,6 @@ function setupPresence() {
                 location.reload(); 
                 return;
             }
-            statusRef.update({ state: "online", lastSeen: timeStr });
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
     });
@@ -410,16 +452,17 @@ function goBottomSmooth() {
 function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
+    if(appScreenLocked || !USER) return;
     db.ref("chats/status/" + USER).update({ typing: "Typing..." });
     clearTimeout(window.typingTimer);
     window.typingTimer = setTimeout(function () {
-        db.ref("chats/status/" + USER).update({ typing: "" });
+        if(USER) db.ref("chats/status/" + USER).update({ typing: "" });
     }, 1500);
 }
 
 function drawMessages() {
     let checkUser = sessionStorage.getItem("ck_user");
-    if(!checkUser) return; 
+    if(!checkUser || appScreenLocked) return; 
 
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
@@ -472,7 +515,7 @@ function drawMessages() {
     scrollBottom();
 }
 
-// FIXED JTHATKA LOGIC: JavaScript handles focus lock dynamically
+// KEYBOARD STABILITY DRIVER: Dynamic execution tracking locks browser text focus layouts
 function handleSendClick(e) {
     e.preventDefault();
     sendCurrentMessage();
@@ -481,7 +524,7 @@ function handleSendClick(e) {
 function sendCurrentMessage() {
     let input = document.getElementById("message");
     let text = input.value.trim();
-    if (text === "") return;
+    if (text === "" || appScreenLocked) return;
 
     let d = new Date();
     let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
@@ -501,7 +544,7 @@ function sendCurrentMessage() {
     replyId = "";
     hideReplyPreview();
     
-    // Focus instantly returned without glitching view panels
+    // Virtual focus retained directly to avoid viewport jumping glitches
     input.focus();
 }
 
@@ -511,7 +554,7 @@ function openGallery() {
 }
 
 function uploadSelectedImage(input) {
-    if (!input.files.length) {
+    if (!input.files.length || appScreenLocked) {
         isSelectingMedia = false;
         return;
     }
@@ -588,6 +631,7 @@ function filterMessages() {
     });
 }
 
+// Global server clear
 function clearChatFromServer() {
     if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
     db.ref("chats/messages").set(null);
