@@ -244,6 +244,24 @@
 </div>
 
 <script>
+// --- FIREBASE INITIALIZATION ENGINE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAbwWS1bAn6ZNPEZ9TfeeBY4C6QosdtXiU",
+  authDomain: "indian-customs-c6a8f.firebaseapp.com",
+  projectId: "indian-customs-c6a8f",
+  storageBucket: "indian-customs-c6a8f.firebasestorage.app",
+  messagingSenderId: "954532252846",
+  appId: "1:954532252846:web:6c8eeee47fc14837b2f13f",
+  measurementId: "G-4MLTB7VD3X",
+  databaseURL: "https://indian-customs-c6a8f-default-rtdb.firebaseio.com"
+};
+
+// FIXED: Global runtime declaration ensures instances don't drop out on mobile viewports
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
+
 let USER = "";
 let messages = [];
 let replyId = "";
@@ -257,7 +275,6 @@ window.onload = function () {
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
-            // Align variable back to explicit capital casing standard safely
             USER = savedNameLower === "alex" ? "Alex" : "Gemini";
             document.getElementById("secureGatewayScreen").style.display = "flex";
             document.getElementById("loginModal").style.display = "none";
@@ -306,7 +323,6 @@ function checkSecureLogin() {
             return;
         }
 
-        // NO LOCHA PATH: Set 100% pure precise casing nodes directly
         USER = usernameLower === "alex" ? "Alex" : "Gemini";
         sessionStorage.setItem("ck_user", USER); 
         
@@ -358,7 +374,6 @@ function initChat() {
         }
     });
 
-    // FIXED DATABASE SCANNER: Direct matching sequence without lowercase bugs
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
         let otherUserKey = Object.keys(statusData).find(u => u !== syncUserKey);
@@ -386,6 +401,8 @@ function initChat() {
 
 function setupPresence() {
     let syncUserKey = USER || sessionStorage.getItem("ck_user");
+    if(!syncUserKey) return;
+    
     let statusRef = db.ref("chats/status/" + syncUserKey);
     let connectedRef = db.ref(".info/connected");
 
@@ -480,7 +497,6 @@ function drawMessages() {
                 }
             }
             
-            // FIXED 100%: Raw string header injected directly over the bubble
             let user = document.createElement("div");
             user.className = "user";
             user.innerText = msg.user; 
@@ -547,6 +563,7 @@ function openGallery() {
     document.getElementById("galleryInput").click(); 
 }
 
+// Image handling components
 function uploadSelectedImage(input) {
     let checkUser = sessionStorage.getItem("ck_user");
     if (!input.files.length || appScreenLocked || !checkUser) {
