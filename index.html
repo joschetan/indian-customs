@@ -62,7 +62,6 @@
       overflow-y: auto;
       padding: 12px;
       scroll-behavior: smooth;
-      transition: opacity 0.05s ease-in-out;
     }
     /* Message Bubble */
     .message {
@@ -179,17 +178,9 @@
 </head>
 <body>
 
-<div id="secureGatewayScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:20000;">
-    <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
-        <p style="font-size:13px; color:#666; margin-bottom:25px;">Terminal session initialization required.</p>
-        <button onclick="triggerLoginInputSequence()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🔓 Press to Login</button>
-    </div>
-</div>
-
-<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
+<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
+        <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
         <input 
             type="text" 
             id="usernameInput" 
@@ -200,7 +191,7 @@
             style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
         >
         <p id="errorMessage" style="color:red; font-size:13px; margin-bottom:15px; display:none; font-weight:bold;"></p>
-        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Verify Identity</button>
+        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Login</button>
     </div>
 </div>
 
@@ -224,7 +215,7 @@
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
+    <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
@@ -255,30 +246,20 @@ let replyId = "";
 let autoScroll = true;
 let isSelectingMedia = false; 
 let initialLoadCount = -1;
-let appScreenLocked = true; // Security gate layout marker flag
 
 window.onload = function () {
     USER = sessionStorage.getItem("ck_user");
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
-            // Direct mask active status forced to stop millisecond leak references
-            document.getElementById("secureGatewayScreen").style.display = "flex";
             document.getElementById("loginModal").style.display = "none";
             initChat();
             return;
         }
     }
     sessionStorage.removeItem("ck_user");
-    document.getElementById("secureGatewayScreen").style.display = "flex";
-    document.getElementById("loginModal").style.display = "none";
-};
-
-function triggerLoginInputSequence() {
-    document.getElementById("secureGatewayScreen").style.display = "none";
     document.getElementById("loginModal").style.display = "flex";
-    document.getElementById("usernameInput").focus();
-}
+};
 
 function checkSecureLogin() {
     let input = document.getElementById("usernameInput");
@@ -302,32 +283,10 @@ function checkSecureLogin() {
     }
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
-        // Validation check if session returns from a background state lock trigger
-        let structuralCheck = sessionStorage.getItem("ck_user");
-        if(structuralCheck && structuralCheck.toLowerCase() !== usernameLower) {
-            errorBox.innerText = "❌ Mismatch Error: Unauthorized Session Identity!";
-            errorBox.style.display = "block";
-            input.value = "";
-            return;
-        }
-
-        USER = usernameLower; 
+        USER = enteredName; // Store original casing strictly
         sessionStorage.setItem("ck_user", USER); 
-        
-        input.value = ""; // Instantly empty raw fields to block caching snapshots
         document.getElementById("loginModal").style.display = "none"; 
-        appScreenLocked = false;
-        document.getElementById("chat").style.opacity = "1";
-        
-        if (typeof window.presencePresenceInitialized === "undefined") {
-            initChat(); 
-        } else {
-            // Restore active state switch onto database node
-            let d = new Date();
-            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-            db.ref("chats/status/" + USER).update({ state: "online", lastSeen: timeStr });
-            drawMessages();
-        }
+        initChat(); 
         return;
     }
 
@@ -339,8 +298,6 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    window.presencePresenceInitialized = true;
-
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -350,14 +307,13 @@ function initChat() {
                 messages.push({ id: key, ...data[key] });
             });
         }
-        // Only draw if explicit security layout code lets bypass
-        if(!appScreenLocked) drawMessages();
+        drawMessages();
 
         if (initialLoadCount === -1) {
             initialLoadCount = messages.length; 
         } else if (messages.length > oldLength && !autoScroll) {
             let lastMsg = messages[messages.length - 1];
-            if (lastMsg && lastMsg.user !== USER) {
+            if (lastMsg && lastMsg.user && lastMsg.user.toLowerCase() !== USER.toLowerCase()) {
                 document.getElementById("netScrollBtn").style.display = "block";
             }
         }
@@ -365,7 +321,7 @@ function initChat() {
 
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
-        let otherUser = Object.keys(statusData).find(u => u !== USER);
+        let otherUser = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
         let title = document.getElementById("chatTitle");
         
         if (otherUser) {
@@ -389,6 +345,7 @@ function initChat() {
 }
 
 function setupPresence() {
+    if(!USER) return;
     let statusRef = db.ref("chats/status/" + USER);
     let connectedRef = db.ref(".info/connected");
 
@@ -397,8 +354,7 @@ function setupPresence() {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
             statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
-            // Set online only if layer sequence validates true
-            if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
+            statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
         }
     });
 
@@ -411,15 +367,12 @@ function setupPresence() {
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
-            // LOCK SEQUENCE: Instantly turn offline on database node to protect privacy rules
             if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
-                // Instantly veil the chat frame to opacity 0 before mobile framework creates image caches
-                document.getElementById("chat").style.opacity = "0"; 
-                appScreenLocked = true;
-                document.getElementById("loginModal").style.display = "none";
-                document.getElementById("secureGatewayScreen").style.display = "flex";
+                document.getElementById("chat").innerHTML = ""; 
+                sessionStorage.removeItem("ck_user");
+                document.getElementById("loginModal").style.display = "flex";
             }
         } else {
             let checkUser = sessionStorage.getItem("ck_user");
@@ -427,6 +380,7 @@ function setupPresence() {
                 location.reload(); 
                 return;
             }
+            if(USER) statusRef.update({ state: "online", lastSeen: timeStr });
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
     });
@@ -452,7 +406,7 @@ function goBottomSmooth() {
 function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
-    if(appScreenLocked || !USER) return;
+    if(!USER) return;
     db.ref("chats/status/" + USER).update({ typing: "Typing..." });
     clearTimeout(window.typingTimer);
     window.typingTimer = setTimeout(function () {
@@ -462,14 +416,17 @@ function typing() {
 
 function drawMessages() {
     let checkUser = sessionStorage.getItem("ck_user");
-    if(!checkUser || appScreenLocked) return; 
+    if(!checkUser) return; 
 
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
 
     messages.forEach(function (msg) {
         let box = document.createElement("div");
-        box.className = "message " + (msg.user === USER ? "me" : "other");
+        
+        // Strict case-insensitive cross matching fixes the "Me" alignment layout
+        let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        box.className = "message " + (isMe ? "me" : "other");
 
         if (msg.deleted === "YES") {
             box.innerHTML = "<div style='color:#aaa;'><i>🚫 This message was deleted</i></div><div class='time'>" + msg.time + "</div>";
@@ -479,11 +436,14 @@ function drawMessages() {
                 if (old) {
                     let reply = document.createElement("div");
                     reply.className = "replyBox";
-                    reply.innerHTML = "<b>" + old.user + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
+                    let isOldMe = (old.user && old.user.toLowerCase() === USER.toLowerCase());
+                    reply.innerHTML = "<b>" + (isOldMe ? "Me" : old.user) + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
                     box.appendChild(reply);
                 }
             }
-            if (msg.user !== USER) {
+            
+            // Show original database name for other nodes, but lock aligned bubbles clean
+            if (!isMe) {
                 let user = document.createElement("div");
                 user.className = "user";
                 user.innerText = msg.user;
@@ -515,22 +475,16 @@ function drawMessages() {
     scrollBottom();
 }
 
-// KEYBOARD STABILITY DRIVER: Dynamic execution tracking locks browser text focus layouts
-function handleSendClick(e) {
-    e.preventDefault();
-    sendCurrentMessage();
-}
-
 function sendCurrentMessage() {
     let input = document.getElementById("message");
     let text = input.value.trim();
-    if (text === "" || appScreenLocked) return;
+    if (text === "" || !USER) return;
 
     let d = new Date();
     let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
     db.ref("chats/messages").push({
-        user: USER,
+        user: USER, // Keeps the capitalized format for old DB nodes compatibility
         type: "TEXT",
         message: text,
         media: "",
@@ -544,7 +498,6 @@ function sendCurrentMessage() {
     replyId = "";
     hideReplyPreview();
     
-    // Virtual focus retained directly to avoid viewport jumping glitches
     input.focus();
 }
 
@@ -554,7 +507,7 @@ function openGallery() {
 }
 
 function uploadSelectedImage(input) {
-    if (!input.files.length || appScreenLocked) {
+    if (!input.files.length || !USER) {
         isSelectingMedia = false;
         return;
     }
@@ -598,7 +551,8 @@ function replyMessage(id) {
 
     let box = document.getElementById("replyPreview");
     box.style.display = "flex";
-    box.innerHTML = "<div><b>Replying to " + msg.user + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
+    let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+    box.innerHTML = "<div><b>Replying to " + (isMsgMe ? "Me" : msg.user) + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
                     "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
 }
 
@@ -625,13 +579,13 @@ function filterMessages() {
     chat.innerHTML = "";
     filtered.forEach(function (msg) {
         let box = document.createElement("div");
-        box.className = "message " + (msg.user === USER ? "me" : "other");
-        box.innerHTML = "<div><b>" + msg.user + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
+        let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        box.className = "message " + (isMsgMe ? "me" : "other");
+        box.innerHTML = "<div><b>" + (isMsgMe ? "Me" : msg.user) + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
         chat.appendChild(box);
     });
 }
 
-// Global server clear
 function clearChatFromServer() {
     if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
     db.ref("chats/messages").set(null);
@@ -641,7 +595,7 @@ function showMenu(msg) {
     let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
     if (choice === "1") replyMessage(msg.id);
     if (choice === "2") {
-        if (msg.user !== USER) { alert("Access Denied: Not your message."); return; }
+        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
         if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
         let newText = prompt("Edit Message:", msg.message);
         if (newText && newText.trim() !== "") {
@@ -649,7 +603,7 @@ function showMenu(msg) {
         }
     }
     if (choice === "3") {
-        if (msg.user !== USER) { alert("Access Denied: Not your message."); return; }
+        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
         if (confirm("Delete permanently?")) {
             db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
         }
