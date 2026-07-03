@@ -215,7 +215,7 @@
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
+    <button onclick="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
@@ -472,6 +472,12 @@ function drawMessages() {
     scrollBottom();
 }
 
+// FIXED JTHATKA LOGIC: JavaScript handles focus lock dynamically
+function handleSendClick(e) {
+    e.preventDefault();
+    sendCurrentMessage();
+}
+
 function sendCurrentMessage() {
     let input = document.getElementById("message");
     let text = input.value.trim();
@@ -495,7 +501,7 @@ function sendCurrentMessage() {
     replyId = "";
     hideReplyPreview();
     
-    // Pure element focal point maintained cleanly
+    // Focus instantly returned without glitching view panels
     input.focus();
 }
 
@@ -536,7 +542,6 @@ function uploadSelectedImage(input) {
     reader.readAsDataURL(file);
 }
 
-// Lightbox functions kept clean
 function openImage(url) {
     document.getElementById("viewerImage").src = url;
     document.getElementById("imageViewer").style.display = "flex";
