@@ -178,19 +178,10 @@
 </head>
 <body>
 
-<!-- INITIAL ENTRY GATEWAY LAYER -->
-<div id="secureGatewayScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:20000;">
-    <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
-        <p style="font-size:13px; color:#666; margin-bottom:25px;">Terminal session initialization required.</p>
-        <button onclick="triggerLoginInputSequence()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🔓 Press to Login</button>
-    </div>
-</div>
-
-<!-- Username Verification Screen -->
-<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
+<!-- Secure Login Screen Modal -->
+<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
+        <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
         <input 
             type="text" 
             id="usernameInput" 
@@ -201,7 +192,7 @@
             style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
         >
         <p id="errorMessage" style="color:red; font-size:13px; margin-bottom:15px; display:none; font-weight:bold;"></p>
-        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Verify Identity</button>
+        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Login</button>
     </div>
 </div>
 
@@ -221,7 +212,7 @@
 <!-- Chat Area Box -->
 <div id="chat"></div>
 
-<!-- Floating Scroll Down Alert Button -->
+<!-- Floating Scroll Down Alert Button (New Message Alert Trigger) -->
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
    ⇣ New Message
 </button>
@@ -231,7 +222,6 @@
     <button onclick="openCamera()" class="media-btn" title="Camera">📷</button>
     <button onclick="openGallery()" class="media-btn" title="Gallery">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <!-- FIXED: Takraav rokne ke liye onmousedown ko clean kiya aur regular function integration di -->
     <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
@@ -268,25 +258,19 @@ let isSelectingMedia = false;
 let initialLoadCount = -1;
 
 window.onload = function () {
-    USER = sessionStorage.getItem("ck_user");
+    // Standard uniform string lookup keys
+    USER = sessionStorage.getItem("ck_user") || localStorage.getItem("ck_user");
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
-            document.getElementById("secureGatewayScreen").style.display = "none";
+            USER = savedNameLower; // Sync direct to low case standard
             document.getElementById("loginModal").style.display = "none";
             initChat();
             return;
         }
     }
-    document.getElementById("secureGatewayScreen").style.display = "flex";
-    document.getElementById("loginModal").style.display = "none";
-};
-
-function triggerLoginInputSequence() {
-    document.getElementById("secureGatewayScreen").style.display = "none";
     document.getElementById("loginModal").style.display = "flex";
-    document.getElementById("usernameInput").focus();
-}
+};
 
 function checkSecureLogin() {
     let input = document.getElementById("usernameInput");
@@ -311,9 +295,8 @@ function checkSecureLogin() {
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
         USER = usernameLower; 
-        sessionStorage.setItem("ck_user", USER); 
-        
-        input.value = ""; 
+        sessionStorage.setItem("ck_user", USER);
+        localStorage.setItem("ck_user", USER); 
         document.getElementById("loginModal").style.display = "none"; 
         initChat(); 
         return;
@@ -327,6 +310,7 @@ function checkSecureLogin() {
 }
 
 function initChat() {
+    // 1. Live Messages listener
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -342,19 +326,22 @@ function initChat() {
             initialLoadCount = messages.length; 
         } else if (messages.length > oldLength && !autoScroll) {
             let lastMsg = messages[messages.length - 1];
-            if (lastMsg && lastMsg.user !== USER) {
+            if (lastMsg && lastMsg.user && lastMsg.user.toLowerCase() !== USER.toLowerCase()) {
                 document.getElementById("netScrollBtn").style.display = "block";
             }
         }
     });
 
+    // 2. FIXED STATUS LOOP: Pure low-case matching parameters for dynamic sync
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
-        let otherUser = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
+        
+        // Find other user key directly by ignoring local uniform key mapping
+        let otherUserKey = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
         let title = document.getElementById("chatTitle");
         
-        if (otherUser) {
-            let info = statusData[otherUser];
+        if (otherUserKey) {
+            let info = statusData[otherUserKey];
             if (info.typing === "Typing...") {
                 title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
             } else if (info.state === "online") {
@@ -387,29 +374,17 @@ function setupPresence() {
         }
     });
 
-    let isAppInSwipedBackground = false;
-    window.onblur = function() { isAppInSwipedBackground = true; };
-    window.onfocus = function() { isAppInSwipedBackground = false; };
-
     document.addEventListener("visibilitychange", function() {
         let d = new Date();
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
-            if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
-            
-            if (!isAppInSwipedBackground && !isSelectingMedia) {
-                document.getElementById("chat").innerHTML = ""; 
-                sessionStorage.removeItem("ck_user");
-                USER = "";
-                document.getElementById("loginModal").style.display = "none";
-                document.getElementById("secureGatewayScreen").style.display = "flex";
+            if(USER && !isSelectingMedia) {
+                statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             }
         } else {
-            let checkUser = sessionStorage.getItem("ck_user");
-            if (!checkUser && document.getElementById("secureGatewayScreen").style.display === "none") {
-                location.reload(); 
-                return;
+            if(USER) {
+                statusRef.update({ state: "online", lastSeen: timeStr });
             }
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
@@ -422,7 +397,6 @@ function checkScroll() {
     if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
 }
 
-// Fixed smooth scroll behavior for notification response
 function scrollBottom() {
     if (!autoScroll) return;
     document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
@@ -446,7 +420,7 @@ function typing() {
 }
 
 function drawMessages() {
-    let checkUser = sessionStorage.getItem("ck_user");
+    let checkUser = sessionStorage.getItem("ck_user") || localStorage.getItem("ck_user");
     if(!checkUser) return; 
 
     let chat = document.getElementById("chat");
@@ -454,7 +428,6 @@ function drawMessages() {
 
     messages.forEach(function (msg) {
         let box = document.createElement("div");
-        
         let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
         box.className = "message " + (isMe ? "me" : "other");
 
@@ -520,7 +493,7 @@ function sendCurrentMessage() {
     replyId = "";
     hideReplyPreview();
 
-    // KEYBOARD RETENTION SYSTEM: Input focus maintain karne ka non-blocking tareeka
+    // Keyboard lock buffer logic
     setTimeout(() => { input.focus(); }, 15);
 }
 
@@ -583,7 +556,6 @@ function replyMessage(id) {
                     "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
 }
 
-// Preview cleaner
 function hideReplyPreview() { replyId = ""; document.getElementById("replyPreview").style.display = "none"; }
 
 function toggleSearch() {
