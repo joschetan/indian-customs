@@ -62,6 +62,7 @@
       overflow-y: auto;
       padding: 12px;
       scroll-behavior: smooth;
+      transition: opacity 0.05s ease-in-out;
     }
     /* Message Bubble */
     .message {
@@ -178,9 +179,17 @@
 </head>
 <body>
 
-<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; justify-content:center; align-items:center; z-index:10000;">
+<div id="secureGatewayScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:20000;">
+    <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
+        <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:25px;">Terminal session initialization required.</p>
+        <button onclick="triggerLoginInputSequence()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🔓 Press to Login</button>
+    </div>
+</div>
+
+<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
     <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
-        <h3 style="color:#075E54; margin-bottom:15px;">Welcome To Indian Customs</h3>
+        <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
         <input 
             type="text" 
             id="usernameInput" 
@@ -191,7 +200,7 @@
             style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
         >
         <p id="errorMessage" style="color:red; font-size:13px; margin-bottom:15px; display:none; font-weight:bold;"></p>
-        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Login</button>
+        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Verify Identity</button>
     </div>
 </div>
 
@@ -206,7 +215,7 @@
 
 <div id="replyPreview"></div>
 
-<div id="chat"></div>
+<div id="chat" style="opacity: 0;"></div>
 
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
    ⇣ New Message
@@ -215,7 +224,7 @@
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
+    <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
@@ -246,20 +255,29 @@ let replyId = "";
 let autoScroll = true;
 let isSelectingMedia = false; 
 let initialLoadCount = -1;
+let appScreenLocked = true; // Security layer trigger active by default
 
 window.onload = function () {
     USER = sessionStorage.getItem("ck_user");
     if (USER) {
         let savedNameLower = USER.trim().toLowerCase();
         if (savedNameLower === "gemini" || savedNameLower === "alex") {
+            document.getElementById("secureGatewayScreen").style.display = "flex";
             document.getElementById("loginModal").style.display = "none";
             initChat();
             return;
         }
     }
     sessionStorage.removeItem("ck_user");
-    document.getElementById("loginModal").style.display = "flex";
+    document.getElementById("secureGatewayScreen").style.display = "flex";
+    document.getElementById("loginModal").style.display = "none";
 };
+
+function triggerLoginInputSequence() {
+    document.getElementById("secureGatewayScreen").style.display = "none";
+    document.getElementById("loginModal").style.display = "flex";
+    document.getElementById("usernameInput").focus();
+}
 
 function checkSecureLogin() {
     let input = document.getElementById("usernameInput");
@@ -283,10 +301,31 @@ function checkSecureLogin() {
     }
 
     if (usernameLower === "gemini" || usernameLower === "alex") {
-        USER = enteredName; // Store original casing strictly
+        // Validation parameter checks dynamic background locks mismatch safety triggers
+        let structuralCheck = sessionStorage.getItem("ck_user");
+        if(structuralCheck && structuralCheck.toLowerCase() !== usernameLower) {
+            errorBox.innerText = "❌ Mismatch Error: Unauthorized Session Identity!";
+            errorBox.style.display = "block";
+            input.value = "";
+            return;
+        }
+
+        USER = enteredName; // Store the case-sensitive string safely
         sessionStorage.setItem("ck_user", USER); 
+        
+        input.value = ""; 
         document.getElementById("loginModal").style.display = "none"; 
-        initChat(); 
+        appScreenLocked = false;
+        document.getElementById("chat").style.opacity = "1";
+        
+        if (typeof window.presencePresenceInitialized === "undefined") {
+            initChat(); 
+        } else {
+            let d = new Date();
+            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+            db.ref("chats/status/" + USER.toLowerCase()).update({ state: "online", lastSeen: timeStr });
+            drawMessages();
+        }
         return;
     }
 
@@ -298,6 +337,9 @@ function checkSecureLogin() {
 }
 
 function initChat() {
+    window.presencePresenceInitialized = true;
+    let syncUserKey = USER ? USER.toLowerCase() : sessionStorage.getItem("ck_user").toLowerCase();
+
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -307,13 +349,13 @@ function initChat() {
                 messages.push({ id: key, ...data[key] });
             });
         }
-        drawMessages();
+        if(!appScreenLocked) drawMessages();
 
         if (initialLoadCount === -1) {
             initialLoadCount = messages.length; 
         } else if (messages.length > oldLength && !autoScroll) {
             let lastMsg = messages[messages.length - 1];
-            if (lastMsg && lastMsg.user && lastMsg.user.toLowerCase() !== USER.toLowerCase()) {
+            if (lastMsg && lastMsg.user && lastMsg.user.toLowerCase() !== syncUserKey) {
                 document.getElementById("netScrollBtn").style.display = "block";
             }
         }
@@ -321,11 +363,11 @@ function initChat() {
 
     db.ref("chats/status").on("value", function(snapshot) {
         let statusData = snapshot.val() || {};
-        let otherUser = Object.keys(statusData).find(u => u.toLowerCase() !== USER.toLowerCase());
+        let otherUserKey = Object.keys(statusData).find(u => u.toLowerCase() !== syncUserKey);
         let title = document.getElementById("chatTitle");
         
-        if (otherUser) {
-            let info = statusData[otherUser];
+        if (otherUserKey) {
+            let info = statusData[otherUserKey];
             if (info.typing === "Typing...") {
                 title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
             } else if (info.state === "online") {
@@ -345,16 +387,16 @@ function initChat() {
 }
 
 function setupPresence() {
-    if(!USER) return;
-    let statusRef = db.ref("chats/status/" + USER);
+    let syncUserKey = USER ? USER.toLowerCase() : sessionStorage.getItem("ck_user").toLowerCase();
+    let statusRef = db.ref("chats/status/" + syncUserKey);
     let connectedRef = db.ref(".info/connected");
 
     connectedRef.on("value", function(snap) {
-        if (snap.val() === true && USER) {
+        if (snap.val() === true && syncUserKey) {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
             statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
-            statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
+            if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
         }
     });
 
@@ -367,12 +409,13 @@ function setupPresence() {
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
-            if(USER) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
+            if(syncUserKey) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
-                document.getElementById("chat").innerHTML = ""; 
-                sessionStorage.removeItem("ck_user");
-                document.getElementById("loginModal").style.display = "flex";
+                document.getElementById("chat").style.opacity = "0"; 
+                appScreenLocked = true;
+                document.getElementById("loginModal").style.display = "none";
+                document.getElementById("secureGatewayScreen").style.display = "flex";
             }
         } else {
             let checkUser = sessionStorage.getItem("ck_user");
@@ -380,7 +423,6 @@ function setupPresence() {
                 location.reload(); 
                 return;
             }
-            if(USER) statusRef.update({ state: "online", lastSeen: timeStr });
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
     });
@@ -406,26 +448,25 @@ function goBottomSmooth() {
 function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
-    if(!USER) return;
-    db.ref("chats/status/" + USER).update({ typing: "Typing..." });
+    let syncUserKey = USER ? USER.toLowerCase() : sessionStorage.getItem("ck_user").toLowerCase();
+    if(appScreenLocked || !syncUserKey) return;
+    db.ref("chats/status/" + syncUserKey).update({ typing: "Typing..." });
     clearTimeout(window.typingTimer);
     window.typingTimer = setTimeout(function () {
-        if(USER) db.ref("chats/status/" + USER).update({ typing: "" });
+        if(syncUserKey) db.ref("chats/status/" + syncUserKey).update({ typing: "" });
     }, 1500);
 }
 
 function drawMessages() {
     let checkUser = sessionStorage.getItem("ck_user");
-    if(!checkUser) return; 
+    if(!checkUser || appScreenLocked) return; 
 
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
 
     messages.forEach(function (msg) {
         let box = document.createElement("div");
-        
-        // Strict case-insensitive cross matching fixes the "Me" alignment layout
-        let isMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        let isMe = (msg.user && msg.user.toLowerCase() === checkUser.toLowerCase());
         box.className = "message " + (isMe ? "me" : "other");
 
         if (msg.deleted === "YES") {
@@ -436,13 +477,11 @@ function drawMessages() {
                 if (old) {
                     let reply = document.createElement("div");
                     reply.className = "replyBox";
-                    let isOldMe = (old.user && old.user.toLowerCase() === USER.toLowerCase());
+                    let isOldMe = (old.user && old.user.toLowerCase() === checkUser.toLowerCase());
                     reply.innerHTML = "<b>" + (isOldMe ? "Me" : old.user) + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
                     box.appendChild(reply);
                 }
             }
-            
-            // Show original database name for other nodes, but lock aligned bubbles clean
             if (!isMe) {
                 let user = document.createElement("div");
                 user.className = "user";
@@ -475,16 +514,22 @@ function drawMessages() {
     scrollBottom();
 }
 
+function handleSendClick(e) {
+    e.preventDefault(); // Prevents touchstart keyboard blur completely
+    sendCurrentMessage();
+}
+
 function sendCurrentMessage() {
     let input = document.getElementById("message");
     let text = input.value.trim();
-    if (text === "" || !USER) return;
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (text === "" || appScreenLocked || !checkUser) return;
 
     let d = new Date();
     let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
     db.ref("chats/messages").push({
-        user: USER, // Keeps the capitalized format for old DB nodes compatibility
+        user: checkUser, 
         type: "TEXT",
         message: text,
         media: "",
@@ -497,7 +542,6 @@ function sendCurrentMessage() {
     input.value = "";
     replyId = "";
     hideReplyPreview();
-    
     input.focus();
 }
 
@@ -507,7 +551,8 @@ function openGallery() {
 }
 
 function uploadSelectedImage(input) {
-    if (!input.files.length || !USER) {
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (!input.files.length || appScreenLocked || !checkUser) {
         isSelectingMedia = false;
         return;
     }
@@ -520,7 +565,7 @@ function uploadSelectedImage(input) {
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
         db.ref("chats/messages").push({
-            user: USER,
+            user: checkUser,
             type: "IMAGE",
             message: "",
             media: base64Data,
@@ -551,7 +596,8 @@ function replyMessage(id) {
 
     let box = document.getElementById("replyPreview");
     box.style.display = "flex";
-    let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+    let checkUser = sessionStorage.getItem("ck_user");
+    let isMsgMe = (msg.user && msg.user.toLowerCase() === checkUser.toLowerCase());
     box.innerHTML = "<div><b>Replying to " + (isMsgMe ? "Me" : msg.user) + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
                     "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
 }
@@ -577,9 +623,10 @@ function filterMessages() {
     
     let chat = document.getElementById("chat");
     chat.innerHTML = "";
+    let checkUser = sessionStorage.getItem("ck_user");
     filtered.forEach(function (msg) {
         let box = document.createElement("div");
-        let isMsgMe = (msg.user && msg.user.toLowerCase() === USER.toLowerCase());
+        let isMsgMe = (msg.user && msg.user.toLowerCase() === checkUser.toLowerCase());
         box.className = "message " + (isMsgMe ? "me" : "other");
         box.innerHTML = "<div><b>" + (isMsgMe ? "Me" : msg.user) + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
         chat.appendChild(box);
@@ -593,9 +640,10 @@ function clearChatFromServer() {
 
 function showMenu(msg) {
     let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
+    let checkUser = sessionStorage.getItem("ck_user");
     if (choice === "1") replyMessage(msg.id);
     if (choice === "2") {
-        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
+        if (msg.user.toLowerCase() !== checkUser.toLowerCase()) { alert("Access Denied: Not your message."); return; }
         if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
         let newText = prompt("Edit Message:", msg.message);
         if (newText && newText.trim() !== "") {
@@ -603,7 +651,7 @@ function showMenu(msg) {
         }
     }
     if (choice === "3") {
-        if (msg.user.toLowerCase() !== USER.toLowerCase()) { alert("Access Denied: Not your message."); return; }
+        if (msg.user.toLowerCase() !== checkUser.toLowerCase()) { alert("Access Denied: Not your message."); return; }
         if (confirm("Delete permanently?")) {
             db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
         }
