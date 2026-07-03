@@ -215,7 +215,7 @@
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
-    <button onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
+    <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="sendCurrentMessage()" class="send-btn" title="Send">➤</button>
 </div>
 
 <input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
@@ -298,7 +298,6 @@ function checkSecureLogin() {
 }
 
 function initChat() {
-    // Sync live messages + calculate length variance for scroll alert trigger
     db.ref("chats/messages").on("value", function(snapshot) {
         let data = snapshot.val();
         let oldLength = messages.length;
@@ -310,7 +309,6 @@ function initChat() {
         }
         drawMessages();
 
-        // KEYBOARD & ALERT FIX: Monitor list variance to slide up floating panel
         if (initialLoadCount === -1) {
             initialLoadCount = messages.length; 
         } else if (messages.length > oldLength && !autoScroll) {
@@ -409,7 +407,6 @@ function goBottomSmooth() {
     document.getElementById("chat").scrollTo({ top: document.getElementById("chat").scrollHeight, behavior: 'smooth' });
 }
 
-// Intercept desktop/mobile enter events to call runtime submission
 function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
 
 function typing() {
@@ -497,9 +494,9 @@ function sendCurrentMessage() {
     input.value = "";
     replyId = "";
     hideReplyPreview();
-
-    // KEYBOARD DRIVEN SYSTEM FIXED: Refocus back instantly on text string node to avoid panel blur
-    setTimeout(() => { input.focus(); }, 15);
+    
+    // Pure element focal point maintained cleanly
+    input.focus();
 }
 
 function openGallery() { 
@@ -539,11 +536,11 @@ function uploadSelectedImage(input) {
     reader.readAsDataURL(file);
 }
 
+// Lightbox functions kept clean
 function openImage(url) {
     document.getElementById("viewerImage").src = url;
     document.getElementById("imageViewer").style.display = "flex";
 }
-// Full layer close lightbox reference
 function closeImage() { document.getElementById("imageViewer").style.display = "none"; }
 
 function replyMessage(id) {
