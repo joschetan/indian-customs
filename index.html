@@ -326,7 +326,6 @@ function checkSecureLogin() {
         if (typeof window.presencePresenceInitialized === "undefined") {
             initChat(); 
         } else {
-            // FORCE LOCK STATE SYNC: Re-establish status nodes to active immediately upon custom authorization bounds
             db.ref("chats/status/" + USER).update({ state: "online", lastSeen: timeStr });
             drawMessages();
         }
@@ -392,6 +391,8 @@ function initChat() {
 
 function setupPresence() {
     let syncUserKey = USER || sessionStorage.getItem("ck_user");
+    if(!syncUserKey) return;
+    
     let statusRef = db.ref("chats/status/" + syncUserKey);
     let connectedRef = db.ref(".info/connected");
 
@@ -399,6 +400,7 @@ function setupPresence() {
         if (snap.val() === true && syncUserKey) {
             let d = new Date();
             let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+            // FIXED: OnDisconnect par bhi offline state ke saath ekdum tazza lastSeen timestamp set hoga
             statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
             if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
         }
@@ -413,6 +415,7 @@ function setupPresence() {
         let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
         
         if (document.hidden) {
+            // FIXED: Jab app background ya lock state me jayegi, tab state offline ke saath exact usi milisecond ka tazza lastSeen update hoga
             if(syncUserKey) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
@@ -427,7 +430,6 @@ function setupPresence() {
                 location.reload(); 
                 return;
             }
-            // FIXED UNVEIL LOGIC: If returning user identity matches authorized layout, force database online state update
             if(!appScreenLocked && syncUserKey) {
                 statusRef.update({ state: "online", lastSeen: timeStr });
             }
@@ -620,7 +622,6 @@ function toggleSearch() {
     }
 }
 
-// Global scope filters
 function filterMessages() {
     let query = document.getElementById("searchBar").value.toLowerCase();
     if(query === "") { drawMessages(); return; }
