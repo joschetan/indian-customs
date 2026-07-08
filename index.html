@@ -38,7 +38,6 @@
     }
     .header .right {
       display: flex;
-      align-items: center;
       gap: 15px;
     }
     .header button {
@@ -184,4 +183,497 @@
     <div style="background:white; padding:35px 30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
         <h3 style="color:#075E54; margin-bottom:10px;">Indian Customs Security</h3>
         <p style="font-size:13px; color:#666; margin-bottom:25px;">Terminal session initialization required.</p>
-        <button onclick="triggerLoginInputSequence()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font
+        <button onclick="triggerLoginInputSequence()" style="width:100%; padding:12px; background:#075E54; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🔓 Press to Login</button>
+    </div>
+</div>
+
+<div id="loginModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#e5ddd5; display:none; justify-content:center; align-items:center; z-index:10000;">
+    <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:center; width:90%; max-width:350px;">
+        <h3 style="color:#075E54; margin-bottom:15px;">Secure Verification</h3>
+        <input 
+            type="text" 
+            id="usernameInput" 
+            name="disabled-autofill" 
+            autocomplete="new-password" 
+            spellcheck="false"
+            placeholder="Enter Username..." 
+            style="width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:20px; outline:none; font-size:16px; margin-bottom:10px; text-align:center;"
+        >
+        <p id="errorMessage" style="color:red; font-size:13px; margin-bottom:15px; display:none; font-weight:bold;"></p>
+        <button onclick="checkSecureLogin()" style="width:100%; padding:10px; background:#25D366; color:white; border:none; border-radius:20px; font-size:16px; cursor:pointer; font-weight:bold;">Verify Identity</button>
+    </div>
+</div>
+
+<div class="header">
+    <div id="chatTitle">Indian Customs</div>
+    <input type="text" id="searchBar" placeholder="Search..." style="display:none;" oninput="filterMessages()">
+    <div class="right">
+        <button onclick="openSecureVoiceTerminal()" title="Secure Call">📞</button>
+        <button onclick="toggleSearch()" title="Search">🔍</button>
+        <button onclick="clearChatFromServer()" title="Clear All">🗑️</button>
+    </div>
+</div>
+
+<div id="replyPreview"></div>
+
+<div id="chat" style="opacity: 0;"></div>
+
+<button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
+   ⇣ New Message
+</button>
+
+<div class="footer">
+    <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
+    <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
+    <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
+</div>
+
+<input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
+
+<div id="imageViewer" onclick="closeImage()">
+    <img id="viewerImage">
+</div>
+
+<script>
+// --- FIREBASE INITIALIZATION ENGINE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAbwWS1bAn6ZNPEZ9TfeeBY4C6QosdtXiU",
+  authDomain: "indian-customs-c6a8f.firebaseapp.com",
+  projectId: "indian-customs-c6a8f",
+  storageBucket: "indian-customs-c6a8f.firebasestorage.app",
+  messagingSenderId: "954532252846",
+  appId: "1:954532252846:web:6c8eeee47fc14837b2f13f",
+  measurementId: "G-4MLTB7VD3X",
+  databaseURL: "https://indian-customs-c6a8f-default-rtdb.firebaseio.com"
+};
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
+
+let USER = "";
+let messages = [];
+let replyId = "";
+let autoScroll = true;
+let isSelectingMedia = false; 
+let initialLoadCount = -1;
+let appScreenLocked = true; 
+
+window.onload = function () {
+    USER = sessionStorage.getItem("ck_user");
+    if (USER) {
+        let savedNameLower = USER.trim().toLowerCase();
+        if (savedNameLower === "gemini" || savedNameLower === "alex") {
+            USER = savedNameLower === "alex" ? "Alex" : "Gemini";
+            document.getElementById("secureGatewayScreen").style.display = "flex";
+            document.getElementById("loginModal").style.display = "none";
+            initChat();
+            return;
+        }
+    }
+    sessionStorage.removeItem("ck_user");
+    document.getElementById("secureGatewayScreen").style.display = "flex";
+    document.getElementById("loginModal").style.display = "none";
+};
+
+function triggerLoginInputSequence() {
+    document.getElementById("secureGatewayScreen").style.display = "none";
+    document.getElementById("loginModal").style.display = "flex";
+    document.getElementById("usernameInput").focus();
+}
+
+function checkSecureLogin() {
+    let input = document.getElementById("usernameInput");
+    let errorBox = document.getElementById("errorMessage");
+    let enteredName = input.value.trim();
+    errorBox.style.display = "none";
+
+    if (enteredName === "") {
+        errorBox.innerText = "🚨 Username cannot be empty!";
+        errorBox.style.display = "block";
+        return;
+    }
+
+    let usernameLower = enteredName.toLowerCase();
+    if (usernameLower === "soham") {
+        errorBox.style.color = "orange";
+        errorBox.innerText = "Redirecting to ICEGATE Gateway...";
+        errorBox.style.display = "block";
+        window.location.href = "https://www.icegate.gov.in/Webappl/home";
+        return;
+    }
+
+    if (usernameLower === "gemini" || usernameLower === "alex") {
+        let structuralCheck = sessionStorage.getItem("ck_user");
+        if(structuralCheck && structuralCheck.toLowerCase() !== usernameLower) {
+            errorBox.innerText = "❌ Mismatch Error: Unauthorized Session Identity!";
+            errorBox.style.display = "block";
+            input.value = "";
+            return;
+        }
+
+        USER = usernameLower === "alex" ? "Alex" : "Gemini";
+        sessionStorage.setItem("ck_user", USER); 
+        
+        input.value = ""; 
+        document.getElementById("loginModal").style.display = "none"; 
+        appScreenLocked = false;
+        document.getElementById("chat").style.opacity = "1";
+        
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
+        if (typeof window.presencePresenceInitialized === "undefined") {
+            initChat(); 
+        } else {
+            db.ref("chats/status/" + USER).update({ state: "online", lastSeen: timeStr });
+            drawMessages();
+        }
+        return;
+    }
+
+    errorBox.style.color = "red";
+    errorBox.innerText = "❌ Login Error: Unauthorized Username!";
+    errorBox.style.display = "block";
+    input.value = "";
+    input.focus();
+}
+
+function initChat() {
+    window.presencePresenceInitialized = true;
+    let syncUserKey = USER || sessionStorage.getItem("ck_user");
+
+    db.ref("chats/messages").on("value", function(snapshot) {
+        let data = snapshot.val();
+        let oldLength = messages.length;
+        messages = [];
+        if (data) {
+            Object.keys(data).forEach(key => {
+                messages.push({ id: key, ...data[key] });
+            });
+        }
+        if(!appScreenLocked) drawMessages();
+
+        if (initialLoadCount === -1) {
+            initialLoadCount = messages.length; 
+        } else if (messages.length > oldLength && !autoScroll) {
+            let lastMsg = messages[messages.length - 1];
+            if (lastMsg && lastMsg.user && lastMsg.user !== syncUserKey) {
+                document.getElementById("netScrollBtn").style.display = "block";
+            }
+        }
+    });
+
+    db.ref("chats/status").on("value", function(snapshot) {
+        let statusData = snapshot.val() || {};
+        let otherUserKey = Object.keys(statusData).find(u => u !== syncUserKey);
+        let title = document.getElementById("chatTitle");
+        
+        if (otherUserKey) {
+            let info = statusData[otherUserKey];
+            if (info.typing === "Typing...") {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>typing...</small>";
+            } else if (info.state === "online") {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>online</small>";
+            } else if (info.lastSeen) {
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#bbb;'>last seen: " + info.lastSeen + "</small>";
+            } else {
+                title.innerText = "Indian Customs";
+            }
+        } else {
+            title.innerText = "Indian Customs";
+        }
+    });
+
+    document.getElementById("chat").addEventListener("scroll", checkScroll);
+    setupPresence();
+}
+
+function setupPresence() {
+    let syncUserKey = USER || sessionStorage.getItem("ck_user");
+    if(!syncUserKey) return;
+    
+    let statusRef = db.ref("chats/status/" + syncUserKey);
+    let connectedRef = db.ref(".info/connected");
+
+    connectedRef.on("value", function(snap) {
+        if (snap.val() === true && syncUserKey) {
+            let d = new Date();
+            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+            statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
+            if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
+        }
+    });
+
+    let isAppInSwipedBackground = false;
+    window.onblur = function() { isAppInSwipedBackground = true; };
+    window.onfocus = function() { isAppInSwipedBackground = false; };
+
+    document.addEventListener("visibilitychange", function() {
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+        
+        if (document.hidden) {
+            if(syncUserKey) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
+            
+            if (!isAppInSwipedBackground && !isSelectingMedia) {
+                document.getElementById("chat").style.opacity = "0"; 
+                appScreenLocked = true;
+                document.getElementById("loginModal").style.display = "none";
+                document.getElementById("secureGatewayScreen").style.display = "flex";
+            }
+        } else {
+            let checkUser = sessionStorage.getItem("ck_user");
+            if (!checkUser) {
+                location.reload(); 
+                return;
+            }
+            if(!appScreenLocked && syncUserKey) {
+                statusRef.update({ state: "online", lastSeen: timeStr });
+            }
+            setTimeout(() => { isSelectingMedia = false; }, 1000);
+        }
+    });
+}
+
+function checkScroll() {
+    let chat = document.getElementById("chat");
+    autoScroll = (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 80);
+    if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
+}
+
+function scrollBottom() {
+    if (!autoScroll) return;
+    document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+}
+
+function goBottomSmooth() {
+    autoScroll = true; 
+    document.getElementById("netScrollBtn").style.display = "none"; 
+    document.getElementById("chat").scrollTo({ top: document.getElementById("chat").scrollHeight, behavior: 'smooth' });
+}
+
+function keyPress(e) { if (e.key === "Enter") sendCurrentMessage(); }
+
+function typing() {
+    let syncUserKey = USER || sessionStorage.getItem("ck_user");
+    if(appScreenLocked || !syncUserKey) return;
+    db.ref("chats/status/" + syncUserKey).update({ typing: "Typing..." });
+    clearTimeout(window.typingTimer);
+    window.typingTimer = setTimeout(function () {
+        if(syncUserKey) db.ref("chats/status/" + syncUserKey).update({ typing: "" });
+    }, 1500);
+}
+
+function drawMessages() {
+    let checkUser = sessionStorage.getItem("ck_user");
+    if(!checkUser || appScreenLocked) return; 
+
+    let chat = document.getElementById("chat");
+    chat.innerHTML = "";
+
+    messages.forEach(function (msg) {
+        let box = document.createElement("div");
+        let isMe = (msg.user && msg.user === checkUser);
+        box.className = "message " + (isMe ? "me" : "other");
+
+        if (msg.deleted === "YES") {
+            box.innerHTML = "<div style='color:#aaa;'><i>🚫 This message was deleted</i></div><div class='time'>" + msg.time + "</div>";
+        } else {
+            if (msg.reply) {
+                let old = messages.find(m => m.id === msg.reply);
+                if (old) {
+                    let reply = document.createElement("div");
+                    reply.className = "replyBox";
+                    reply.innerHTML = "<b>" + old.user + "</b><br>" + (old.type === "IMAGE" ? "📷 Photo" : old.message);
+                    box.appendChild(reply);
+                }
+            }
+            
+            let user = document.createElement("div");
+            user.className = "user";
+            user.innerText = msg.user; 
+            box.appendChild(user);
+            
+            if (msg.type === "IMAGE") {
+                let img = document.createElement("img");
+                img.src = msg.media;
+                img.className = "chatImage";
+                img.onclick = function () { openImage(msg.media); };
+                box.appendChild(img);
+            } else {
+                let text = document.createElement("div");
+                text.innerText = msg.message;
+                box.appendChild(text);
+            }
+
+            let time = document.createElement("div");
+            time.className = "time";
+            time.innerText = msg.time + (msg.edited ? " • Edited" : "");
+            box.appendChild(time);
+        }
+
+        box.oncontextmenu = function (e) { e.preventDefault(); showMenu(msg); };
+        chat.appendChild(box);
+    });
+
+    scrollBottom();
+}
+
+function handleSendClick(e) {
+    e.preventDefault(); 
+    sendCurrentMessage();
+}
+
+function sendCurrentMessage() {
+    let input = document.getElementById("message");
+    let text = input.value.trim();
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (text === "" || appScreenLocked || !checkUser) return;
+
+    let d = new Date();
+    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
+    db.ref("chats/messages").push({
+        user: checkUser, 
+        type: "TEXT",
+        message: text,
+        media: "",
+        time: timeStr,
+        reply: replyId || "",
+        edited: "",
+        deleted: ""
+    });
+
+    input.value = "";
+    replyId = "";
+    hideReplyPreview();
+    input.focus();
+}
+
+function openGallery() { 
+    isSelectingMedia = true; 
+    document.getElementById("galleryInput").click(); 
+}
+
+function uploadSelectedImage(input) {
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (!input.files.length || appScreenLocked || !checkUser) {
+        isSelectingMedia = false;
+        return;
+    }
+    let file = input.files[0];
+    let reader = new FileReader();
+
+    reader.onload = function (e) {
+        let base64Data = e.target.result;
+        let d = new Date();
+        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+
+        db.ref("chats/messages").push({
+            user: checkUser,
+            type: "IMAGE",
+            message: "",
+            media: base64Data,
+            time: timeStr,
+            reply: replyId || "",
+            edited: "",
+            deleted: ""
+        });
+        
+        input.value = "";
+        replyId = "";
+        hideReplyPreview();
+        isSelectingMedia = false; 
+    };
+    reader.readAsDataURL(file);
+}
+
+function openImage(url) {
+    document.getElementById("viewerImage").src = url;
+    document.getElementById("imageViewer").style.display = "flex";
+}
+function closeImage() { document.getElementById("imageViewer").style.display = "none"; }
+
+function replyMessage(id) {
+    replyId = id;
+    let msg = messages.find(m => m.id === id);
+    if (!msg) return;
+
+    let box = document.getElementById("replyPreview");
+    box.style.display = "flex";
+    box.innerHTML = "<div><b>Replying to " + msg.user + "</b><br>" + (msg.type === "IMAGE" ? "📷 Photo" : msg.message) + "</div>" +
+                    "<span style='cursor:pointer;font-size:18px;margin-left:10px;' onclick='hideReplyPreview()'>✖</span>";
+}
+
+function hideReplyPreview() { replyId = ""; document.getElementById("replyPreview").style.display = "none"; }
+
+function toggleSearch() {
+    let bar = document.getElementById("searchBar");
+    if(bar.style.display === "none") {
+        bar.style.display = "inline-block";
+        bar.focus();
+    } else {
+        bar.style.display = "none";
+        bar.value = "";
+        drawMessages();
+    }
+}
+
+function filterMessages() {
+    let query = document.getElementById("searchBar").value.toLowerCase();
+    if(query === "") { drawMessages(); return; }
+    let filtered = messages.filter(m => m.deleted !== "YES" && m.message && m.message.toLowerCase().includes(query));
+    
+    let chat = document.getElementById("chat");
+    chat.innerHTML = "";
+    filtered.forEach(function (msg) {
+        let box = document.createElement("div");
+        box.className = "message " + (msg.user === USER ? "me" : "other");
+        box.innerHTML = "<div><b>" + msg.user + "</b></div><div>" + msg.message + "</div><div class='time'>" + msg.time + "</div>";
+        chat.appendChild(box);
+    });
+}
+
+function clearChatFromServer() {
+    if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
+    db.ref("chats/messages").set(null);
+}
+
+function showMenu(msg) {
+    let choice = prompt(`Select Option:\n1 = Reply\n2 = Edit\n3 = Delete\n\nEnter number:`);
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (choice === "1") replyMessage(msg.id);
+    if (choice === "2") {
+        if (msg.user !== checkUser) { alert("Access Denied: Not your message."); return; }
+        if (msg.type === "IMAGE") { alert("Images cannot be modified."); return; }
+        let newText = prompt("Edit Message:", msg.message);
+        if (newText && newText.trim() !== "") {
+            db.ref("chats/messages/" + msg.id).update({ message: newText.trim(), edited: "YES" });
+        }
+    }
+    if (choice === "3") {
+        if (msg.user !== checkUser) { alert("Access Denied: Not your message."); return; }
+        if (confirm("Delete permanently?")) {
+            db.ref("chats/messages/" + msg.id).update({ deleted: "YES" });
+        }
+    }
+}
+
+document.getElementById("chat").addEventListener("dblclick", function(e){
+    let box = e.target.closest(".message");
+    if(!box) return;
+    let textDiv = box.querySelector("div:not(.user):not(.time):not(.replyBox)");
+    if(textDiv) {
+        let match = messages.find(m => m.message === textDiv.innerText);
+        if(match && match.deleted !== "YES") replyMessage(match.id);
+    }
+});
+
+function openSecureVoiceTerminal() {
+    window.open("call.html", "_blank");
+}
+</script>
+</body>
+</html>
