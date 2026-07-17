@@ -219,7 +219,7 @@
 <div id="chat" style="opacity: 0;"></div>
 
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
-   ⇣ New Message
+    ⇣ New Message
 </button>
 
 <div class="footer">
@@ -327,7 +327,8 @@ function checkSecureLogin() {
         if (typeof window.presencePresenceInitialized === "undefined") {
             initChat(); 
         } else {
-            db.ref("chats/status/" + USER).update({ state: "online", lastSeen: timeStr });
+            // FIXED: Sync current server timestamp on fresh logins
+            db.ref("chats/status/" + USER).update({ state: "online", lastSeen: firebase.database.ServerValue.TIMESTAMP });
             drawMessages();
         }
         return;
@@ -377,7 +378,13 @@ function initChat() {
             } else if (info.state === "online") {
                 title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>online</small>";
             } else if (info.lastSeen) {
-                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#bbb;'>last seen: " + info.lastSeen + "</small>";
+                // FIXED: Automatically convert numeric server timestamp back into accurate readable client string
+                let finalTime = info.lastSeen;
+                if (typeof info.lastSeen === "number") {
+                    let dateObj = new Date(info.lastSeen);
+                    finalTime = dateObj.toLocaleDateString('en-GB') + " " + dateObj.toTimeString().split(' ')[0];
+                }
+                title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#bbb;'>last seen: " + finalTime + "</small>";
             } else {
                 title.innerText = "Indian Customs";
             }
@@ -399,10 +406,9 @@ function setupPresence() {
 
     connectedRef.on("value", function(snap) {
         if (snap.val() === true && syncUserKey) {
-            let d = new Date();
-            let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-            statusRef.onDisconnect().set({ state: "offline", lastSeen: timeStr, typing: "" });
-            if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: timeStr, typing: "" });
+            // HARDCORE FIX: Used update instead of set to avoid data rollbacks, and assigned dynamic absolute Server Value timestamps upon terminal crashes
+            statusRef.onDisconnect().update({ state: "offline", lastSeen: firebase.database.ServerValue.TIMESTAMP, typing: "" });
+            if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: firebase.database.ServerValue.TIMESTAMP, typing: "" });
         }
     });
 
@@ -411,11 +417,9 @@ function setupPresence() {
     window.onfocus = function() { isAppInSwipedBackground = false; };
 
     document.addEventListener("visibilitychange", function() {
-        let d = new Date();
-        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-        
         if (document.hidden) {
-            if(syncUserKey) statusRef.update({ state: "offline", lastSeen: timeStr, typing: "" });
+            // FIXED: Pushes fresh server time when minimized to avoid ghost intervals
+            if(syncUserKey) statusRef.update({ state: "offline", lastSeen: firebase.database.ServerValue.TIMESTAMP, typing: "" });
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
                 document.getElementById("chat").style.opacity = "0"; 
@@ -430,7 +434,7 @@ function setupPresence() {
                 return;
             }
             if(!appScreenLocked && syncUserKey) {
-                statusRef.update({ state: "online", lastSeen: timeStr });
+                statusRef.update({ state: "online", lastSeen: firebase.database.ServerValue.TIMESTAMP });
             }
             setTimeout(() => { isSelectingMedia = false; }, 1000);
         }
