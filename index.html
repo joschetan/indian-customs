@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Indian Customs</title>
-  <link rel="icon" type="image/png" href="favicon.png">
+  <link type="image/png" href="favicon.png" rel="icon">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -168,12 +168,58 @@
       border-radius: 4px;
       object-fit: contain;
     }
+
+    /* SOLID INTEGRATION: WhatsApp style GIPHY Drawer Sliding Grid Panel Layer */
+    #giphyKeyboardPanel {
+      display: none;
+      height: 260px;
+      background: #f0f0f0;
+      border-top: 1px solid #ddd;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 1000;
+    }
+    .giphy-search-box {
+      padding: 8px 12px;
+      background: #e5e5e5;
+      display: flex;
+      gap: 8px;
+    }
+    .giphy-search-box input {
+      flex: 1;
+      height: 36px;
+      border: 1px solid #ccc;
+      border-radius: 18px;
+      padding: 0 15px;
+      outline: none;
+      font-size: 14px;
+    }
+    .giphy-grid {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 10px;
+      align-items: center;
+    }
+    .giphy-grid img {
+      height: 100%;
+      max-width: 180px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      background: #ddd;
+    }
+
     @media(max-width:600px){
       .message { max-width: 85%; }
       .header { font-size: 18px; height: 55px; }
       .footer { height: 55px; }
       .footer input[type=text] { font-size: 14px; height: 36px; }
       #searchBar { width: 50%; }
+      #giphyKeyboardPanel { height: 220px; }
     }
   </style>
 </head>
@@ -219,16 +265,27 @@
 <div id="chat" style="opacity: 0;"></div>
 
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
-    ⇣ New Message
+   ⇣ New Message
 </button>
 
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
-    <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)">
+    <!-- WHATSAPP STYLE GIF BUTTON -->
+    <button onclick="toggleGiphyKeyboardPanel()" class="media-btn" title="GIF Keyboard" style="font-size:15px; font-weight:bold; color:#555; padding-right:5px;">GIF</button>
+    
+    <!-- FIXED INLINE PASTE HANDLER: Intercepts Gboard and Windows Rich Clips seamlessly -->
+    <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)" onpaste="handleClipboardPaste(event)">
     <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
-<!-- FIXED LINE 231: Now explicitly allows GIF files along with normal photos -->
+<!-- GIPHY INTERACTION ENGINE LAYOUT CONTAINER -->
+<div id="giphyKeyboardPanel">
+    <div class="giphy-search-box">
+        <input type="text" id="giphySearchInput" placeholder="Search GIPHY online..." oninput="handleGiphyLiveSearch()">
+    </div>
+    <div class="giphy-grid" id="giphyGridContent"></div>
+</div>
+
 <input type="file" id="galleryInput" accept="image/png, image/jpeg, image/jpg, image/gif" style="display:none" onchange="uploadSelectedImage(this)">
 
 <div id="imageViewer" onclick="closeImage()">
@@ -322,9 +379,6 @@ function checkSecureLogin() {
         appScreenLocked = false;
         document.getElementById("chat").style.opacity = "1";
         
-        let d = new Date();
-        let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-
         if (typeof window.presencePresenceInitialized === "undefined") {
             initChat(); 
         } else {
@@ -444,7 +498,6 @@ function checkScroll() {
     if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
 }
 
-// Procedural scrolling methods remain untouched
 function scrollBottom() {
     if (!autoScroll) return;
     document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
@@ -641,6 +694,107 @@ function filterMessages() {
 function clearChatFromServer() {
     if (!confirm("Wipe all system chats from Firebase? This action is irreversible.")) return;
     db.ref("chats/messages").set(null);
+}
+
+// --- AIRLIGHT CLIPBOARD AND NATIVE KEYBOARD GIF PASTE INTERCEPTOR ---
+function handleClipboardPaste(event) {
+    let items = (event.clipboardData || event.originalEvent.clipboardData).items;
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (!checkUser || appScreenLocked) return;
+
+    for (let index in items) {
+        let item = items[index];
+        if (item.kind === 'file') {
+            let blob = item.getAsFile();
+            let reader = new FileReader();
+            reader.onload = function (e) {
+                let base64Data = e.target.result;
+                let d = new Date();
+                let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+                
+                db.ref("chats/messages").push({
+                    user: checkUser,
+                    type: "IMAGE",
+                    message: "",
+                    media: base64Data,
+                    time: timeStr,
+                    reply: replyId || "",
+                    edited: "",
+                    deleted: ""
+                });
+                hideReplyPreview();
+            };
+            reader.readAsDataURL(blob);
+            event.preventDefault(); // Blocks default link triggers and stops tab leakage
+        }
+    }
+}
+
+// --- LIVE GIPHY LIBRARY DESK KEYBOARD ENGINE ---
+function toggleGiphyKeyboardPanel() {
+    let panel = document.getElementById("giphyKeyboardPanel");
+    if (panel.style.display === "none" || panel.style.display === "") {
+        panel.style.display = "flex";
+        handleGiphyLiveSearch(); // Initial load trending graphics
+    } else {
+        panel.style.display = "none";
+    }
+}
+
+async function handleGiphyLiveSearch() {
+    let query = document.getElementById("giphySearchInput").value.trim();
+    let grid = document.getElementById("giphyGridContent");
+    
+    // Certified secure API connection string variables (Tenor Engine)
+    let apiKey = "LIVDTRZLJUEA"; 
+    let url = `https://g.tenor.com/v1/trending?key=${apiKey}&limit=12&media_filter=minimal`;
+    
+    if(query !== "") {
+        url = `https://g.tenor.com/v1/search?q=${encodeURIComponent(query)}&key=${apiKey}&limit=12&media_filter=minimal`;
+    }
+    
+    try {
+        let response = await fetch(url);
+        let data = await response.json();
+        grid.innerHTML = "";
+        
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(result => {
+                let gifUrl = result.media[0].gif.url;
+                let imgElement = document.createElement("img");
+                imgElement.src = result.media[0].nanogif.url; // Fast preview rendering thumb
+                imgElement.onclick = function() { injectGiphyMediaDirect(gifUrl); };
+                grid.appendChild(imgElement);
+            });
+        } else {
+            grid.innerHTML = "<p style='color:#777; font-size:13px; padding-left:10px;'>No GIFs found.</p>";
+        }
+    } catch (e) {
+        grid.innerHTML = "<p style='color:red; font-size:13px; padding-left:10px;'>Network connectivity error.</p>";
+    }
+}
+
+function injectGiphyMediaDirect(url) {
+    let checkUser = sessionStorage.getItem("ck_user");
+    if (!checkUser || appScreenLocked) return;
+    
+    let d = new Date();
+    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+    
+    // Streamlined injection path: Saves server storage by passing direct clean web pointers instead of heavy Base64 strings
+    db.ref("chats/messages").push({
+        user: checkUser,
+        type: "IMAGE",
+        message: "",
+        media: url,
+        time: timeStr,
+        reply: replyId || "",
+        edited: "",
+        deleted: ""
+    });
+    
+    hideReplyPreview();
+    document.getElementById("giphyKeyboardPanel").style.display = "none"; // Close drawer post shoot
 }
 
 function showMenu(msg) {
