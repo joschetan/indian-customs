@@ -169,57 +169,12 @@
       object-fit: contain;
     }
 
-    /* GIPHY Panel Layer Styles */
-    #giphyKeyboardPanel {
-      display: none;
-      height: 260px;
-      background: #f0f0f0;
-      border-top: 1px solid #ddd;
-      flex-direction: column;
-      flex-shrink: 0;
-      z-index: 1000;
-    }
-    .giphy-search-box {
-      padding: 8px 12px;
-      background: #e5e5e5;
-      display: flex;
-      gap: 8px;
-    }
-    .giphy-search-box input {
-      flex: 1;
-      height: 36px;
-      border: 1px solid #ccc;
-      border-radius: 18px;
-      padding: 0 15px;
-      outline: none;
-      font-size: 14px;
-    }
-    .giphy-grid {
-      flex: 1;
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 10px;
-      align-items: center;
-    }
-    .giphy-grid img {
-      height: 100%;
-      max-width: 180px;
-      object-fit: cover;
-      border-radius: 6px;
-      cursor: pointer;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-      background: #ddd;
-    }
-
     @media(max-width:600px){
       .message { max-width: 85%; }
       .header { font-size: 18px; height: 55px; }
       .footer { height: 55px; }
       .footer input[type=text] { font-size: 14px; height: 36px; }
       #searchBar { width: 50%; }
-      #giphyKeyboardPanel { height: 220px; }
     }
   </style>
 </head>
@@ -265,23 +220,13 @@
 <div id="chat" style="opacity: 0;"></div>
 
 <button id="netScrollBtn" onclick="goBottomSmooth()" style="display: none; position: fixed; bottom: 80px; right: 20px; background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 999;">
-   ⇣ New Message
+    ⇣ New Message
 </button>
 
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
-    <button onclick="toggleGiphyKeyboardPanel()" class="media-btn" title="GIF Keyboard" style="font-size:15px; font-weight:bold; color:#555; padding-right:5px;">GIF</button>
-    
-    <!-- STRICT STABILITY INPUT INTERCEPTOR -->
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)" onpaste="handleClipboardPaste(event)">
     <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
-</div>
-
-<div id="giphyKeyboardPanel">
-    <div class="giphy-search-box">
-        <input type="text" id="giphySearchInput" placeholder="Search GIPHY online..." oninput="handleGiphyLiveSearch()">
-    </div>
-    <div class="giphy-grid" id="giphyGridContent"></div>
 </div>
 
 <input type="file" id="galleryInput" accept="image/png, image/jpeg, image/jpg, image/gif" style="display:none" onchange="uploadSelectedImage(this)">
@@ -588,16 +533,32 @@ function sendCurrentMessage() {
     let d = new Date();
     let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
 
-    db.ref("chats/messages").push({
-        user: checkUser, 
-        type: "TEXT",
-        message: text,
-        media: "",
-        time: timeStr,
-        reply: replyId || "",
-        edited: "",
-        deleted: ""
-    });
+    // SMART INJECTION: Instantly intercepts direct online GIF links
+    let isOnlineGif = (text.startsWith("http://") || text.startsWith("https://")) && text.toLowerCase().includes(".gif");
+
+    if (isOnlineGif) {
+        db.ref("chats/messages").push({
+            user: checkUser, 
+            type: "IMAGE",
+            message: "",
+            media: text,
+            time: timeStr,
+            reply: replyId || "",
+            edited: "",
+            deleted: ""
+        });
+    } else {
+        db.ref("chats/messages").push({
+            user: checkUser, 
+            type: "TEXT",
+            message: text,
+            media: "",
+            time: timeStr,
+            reply: replyId || "",
+            edited: "",
+            deleted: ""
+        });
+    }
 
     input.value = "";
     replyId = "";
@@ -694,19 +655,16 @@ function clearChatFromServer() {
     db.ref("chats/messages").set(null);
 }
 
-/* NATIVE PASTE INTERCEPTOR ENGINE: Handles direct raw data injections and intercepts rich-text leaks */
+/* NATIVE PASTE INTERCEPTOR ENGINE: Handles direct clipboard image bytes securely */
 function handleClipboardPaste(event) {
     let checkUser = sessionStorage.getItem("ck_user");
     if (!checkUser || appScreenLocked) return;
 
-    // First try standard clipboard file interceptor
     let items = (event.clipboardData || event.originalEvent.clipboardData).items;
-    let fileFound = false;
 
     for (let index in items) {
         let item = items[index];
         if (item.kind === 'file') {
-            fileFound = true;
             let blob = item.getAsFile();
             let reader = new FileReader();
             reader.onload = function (e) {
@@ -715,15 +673,6 @@ function handleClipboardPaste(event) {
             reader.readAsDataURL(blob);
             event.preventDefault();
             return;
-        }
-    }
-
-    // Secondary Rich HTML text URL interceptor for keyboard engines mapping data leaks
-    if (!fileFound) {
-        let pastedText = (event.clipboardData || window.clipboardData).getData('text');
-        if (pastedText && (pastedText.startsWith('http://') || pastedText.startsWith('https://')) && pastedText.match(/\.(jpeg|jpg|gif|png)/)) {
-            executeDirectMediaPush(pastedText);
-            event.preventDefault();
         }
     }
 }
@@ -744,54 +693,6 @@ function executeDirectMediaPush(mediaSource) {
         deleted: ""
     });
     hideReplyPreview();
-}
-
-// --- NEW STABLE NO-KEY PUBLIC DYNAMIC GIF KEYBOARD ENGINE ---
-function toggleGiphyKeyboardPanel() {
-    let panel = document.getElementById("giphyKeyboardPanel");
-    if (panel.style.display === "none" || panel.style.display === "") {
-        panel.style.display = "flex";
-        handleGiphyLiveSearch();
-    } else {
-        panel.style.display = "none";
-    }
-}
-
-async function handleGiphyLiveSearch() {
-    let query = document.getElementById("giphySearchInput").value.trim();
-    let grid = document.getElementById("giphyGridContent");
-    
-    // Stable public media ingestion pipe route setup
-    let url = "https://api.giphy.com/v1/gifs/trending?api_key=3eFQ7vSI6Nm5QCkx16v0vNf8Z4Q4v6S4&limit=12&rating=g";
-    if (query !== "") {
-        url = `https://api.giphy.com/v1/gifs/search?api_key=3eFQ7vSI6Nm5QCkx16v0vNf8Z4Q4v6S4&q=${encodeURIComponent(query)}&limit=12&offset=0&rating=g&lang=en`;
-    }
-    
-    try {
-        let response = await fetch(url);
-        let json = await response.json();
-        grid.innerHTML = "";
-        
-        if (json.data && json.data.length > 0) {
-            json.data.forEach(gif => {
-                let fixedUrl = gif.images.fixed_height_small.url;
-                let originalUrl = gif.images.fixed_height.url;
-                let imgElement = document.createElement("img");
-                imgElement.src = fixedUrl;
-                imgElement.onclick = function() { injectGiphyMediaDirect(originalUrl); };
-                grid.appendChild(imgElement);
-            });
-        } else {
-            grid.innerHTML = "<p style='color:#777; font-size:13px; padding-left:10px;'>No GIFs discovered.</p>";
-        }
-    } catch (e) {
-        grid.innerHTML = "<p style='color:red; font-size:13px; padding-left:10px;'>Server routing timeout. Re-trying...</p>";
-    }
-}
-
-function injectGiphyMediaDirect(url) {
-    executeDirectMediaPush(url);
-    document.getElementById("giphyKeyboardPanel").style.display = "none";
 }
 
 function showMenu(msg) {
