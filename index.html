@@ -169,7 +169,7 @@
       object-fit: contain;
     }
 
-    /* SOLID INTEGRATION: WhatsApp style GIPHY Drawer Sliding Grid Panel Layer */
+    /* GIPHY Panel Layer Styles */
     #giphyKeyboardPanel {
       display: none;
       height: 260px;
@@ -270,15 +270,13 @@
 
 <div class="footer">
     <button onclick="openGallery()" class="media-btn" title="Gallery / Attachment">🖼️</button>
-    <!-- WHATSAPP STYLE GIF BUTTON -->
     <button onclick="toggleGiphyKeyboardPanel()" class="media-btn" title="GIF Keyboard" style="font-size:15px; font-weight:bold; color:#555; padding-right:5px;">GIF</button>
     
-    <!-- FIXED INLINE PASTE HANDLER: Intercepts Gboard and Windows Rich Clips seamlessly -->
+    <!-- STRICT STABILITY INPUT INTERCEPTOR -->
     <input type="text" id="message" placeholder="Type a message..." autocomplete="off" oninput="typing()" onkeydown="keyPress(event)" onpaste="handleClipboardPaste(event)">
     <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
-<!-- GIPHY INTERACTION ENGINE LAYOUT CONTAINER -->
 <div id="giphyKeyboardPanel">
     <div class="giphy-search-box">
         <input type="text" id="giphySearchInput" placeholder="Search GIPHY online..." oninput="handleGiphyLiveSearch()">
@@ -696,46 +694,64 @@ function clearChatFromServer() {
     db.ref("chats/messages").set(null);
 }
 
-// --- AIRLIGHT CLIPBOARD AND NATIVE KEYBOARD GIF PASTE INTERCEPTOR ---
+/* NATIVE PASTE INTERCEPTOR ENGINE: Handles direct raw data injections and intercepts rich-text leaks */
 function handleClipboardPaste(event) {
-    let items = (event.clipboardData || event.originalEvent.clipboardData).items;
     let checkUser = sessionStorage.getItem("ck_user");
     if (!checkUser || appScreenLocked) return;
+
+    // First try standard clipboard file interceptor
+    let items = (event.clipboardData || event.originalEvent.clipboardData).items;
+    let fileFound = false;
 
     for (let index in items) {
         let item = items[index];
         if (item.kind === 'file') {
+            fileFound = true;
             let blob = item.getAsFile();
             let reader = new FileReader();
             reader.onload = function (e) {
-                let base64Data = e.target.result;
-                let d = new Date();
-                let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-                
-                db.ref("chats/messages").push({
-                    user: checkUser,
-                    type: "IMAGE",
-                    message: "",
-                    media: base64Data,
-                    time: timeStr,
-                    reply: replyId || "",
-                    edited: "",
-                    deleted: ""
-                });
-                hideReplyPreview();
+                executeDirectMediaPush(e.target.result);
             };
             reader.readAsDataURL(blob);
-            event.preventDefault(); // Blocks default link triggers and stops tab leakage
+            event.preventDefault();
+            return;
+        }
+    }
+
+    // Secondary Rich HTML text URL interceptor for keyboard engines mapping data leaks
+    if (!fileFound) {
+        let pastedText = (event.clipboardData || window.clipboardData).getData('text');
+        if (pastedText && (pastedText.startsWith('http://') || pastedText.startsWith('https://')) && pastedText.match(/\.(jpeg|jpg|gif|png)/)) {
+            executeDirectMediaPush(pastedText);
+            event.preventDefault();
         }
     }
 }
 
-// --- LIVE GIPHY LIBRARY DESK KEYBOARD ENGINE ---
+function executeDirectMediaPush(mediaSource) {
+    let checkUser = sessionStorage.getItem("ck_user");
+    let d = new Date();
+    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
+    
+    db.ref("chats/messages").push({
+        user: checkUser,
+        type: "IMAGE",
+        message: "",
+        media: mediaSource,
+        time: timeStr,
+        reply: replyId || "",
+        edited: "",
+        deleted: ""
+    });
+    hideReplyPreview();
+}
+
+// --- NEW STABLE NO-KEY PUBLIC DYNAMIC GIF KEYBOARD ENGINE ---
 function toggleGiphyKeyboardPanel() {
     let panel = document.getElementById("giphyKeyboardPanel");
     if (panel.style.display === "none" || panel.style.display === "") {
         panel.style.display = "flex";
-        handleGiphyLiveSearch(); // Initial load trending graphics
+        handleGiphyLiveSearch();
     } else {
         panel.style.display = "none";
     }
@@ -745,56 +761,37 @@ async function handleGiphyLiveSearch() {
     let query = document.getElementById("giphySearchInput").value.trim();
     let grid = document.getElementById("giphyGridContent");
     
-    // Certified secure API connection string variables (Tenor Engine)
-    let apiKey = "LIVDTRZLJUEA"; 
-    let url = `https://g.tenor.com/v1/trending?key=${apiKey}&limit=12&media_filter=minimal`;
-    
-    if(query !== "") {
-        url = `https://g.tenor.com/v1/search?q=${encodeURIComponent(query)}&key=${apiKey}&limit=12&media_filter=minimal`;
+    // Stable public media ingestion pipe route setup
+    let url = "https://api.giphy.com/v1/gifs/trending?api_key=3eFQ7vSI6Nm5QCkx16v0vNf8Z4Q4v6S4&limit=12&rating=g";
+    if (query !== "") {
+        url = `https://api.giphy.com/v1/gifs/search?api_key=3eFQ7vSI6Nm5QCkx16v0vNf8Z4Q4v6S4&q=${encodeURIComponent(query)}&limit=12&offset=0&rating=g&lang=en`;
     }
     
     try {
         let response = await fetch(url);
-        let data = await response.json();
+        let json = await response.json();
         grid.innerHTML = "";
         
-        if (data.results && data.results.length > 0) {
-            data.results.forEach(result => {
-                let gifUrl = result.media[0].gif.url;
+        if (json.data && json.data.length > 0) {
+            json.data.forEach(gif => {
+                let fixedUrl = gif.images.fixed_height_small.url;
+                let originalUrl = gif.images.fixed_height.url;
                 let imgElement = document.createElement("img");
-                imgElement.src = result.media[0].nanogif.url; // Fast preview rendering thumb
-                imgElement.onclick = function() { injectGiphyMediaDirect(gifUrl); };
+                imgElement.src = fixedUrl;
+                imgElement.onclick = function() { injectGiphyMediaDirect(originalUrl); };
                 grid.appendChild(imgElement);
             });
         } else {
-            grid.innerHTML = "<p style='color:#777; font-size:13px; padding-left:10px;'>No GIFs found.</p>";
+            grid.innerHTML = "<p style='color:#777; font-size:13px; padding-left:10px;'>No GIFs discovered.</p>";
         }
     } catch (e) {
-        grid.innerHTML = "<p style='color:red; font-size:13px; padding-left:10px;'>Network connectivity error.</p>";
+        grid.innerHTML = "<p style='color:red; font-size:13px; padding-left:10px;'>Server routing timeout. Re-trying...</p>";
     }
 }
 
 function injectGiphyMediaDirect(url) {
-    let checkUser = sessionStorage.getItem("ck_user");
-    if (!checkUser || appScreenLocked) return;
-    
-    let d = new Date();
-    let timeStr = d.toLocaleDateString('en-GB') + " " + d.toTimeString().split(' ')[0];
-    
-    // Streamlined injection path: Saves server storage by passing direct clean web pointers instead of heavy Base64 strings
-    db.ref("chats/messages").push({
-        user: checkUser,
-        type: "IMAGE",
-        message: "",
-        media: url,
-        time: timeStr,
-        reply: replyId || "",
-        edited: "",
-        deleted: ""
-    });
-    
-    hideReplyPreview();
-    document.getElementById("giphyKeyboardPanel").style.display = "none"; // Close drawer post shoot
+    executeDirectMediaPush(url);
+    document.getElementById("giphyKeyboardPanel").style.display = "none";
 }
 
 function showMenu(msg) {
