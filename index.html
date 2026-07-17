@@ -228,7 +228,8 @@
     <button onmousedown="handleSendClick(event)" ontouchstart="handleSendClick(event)" class="send-btn" title="Send">➤</button>
 </div>
 
-<input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="uploadSelectedImage(this)">
+<!-- FIXED LINE 231: Now explicitly allows GIF files along with normal photos -->
+<input type="file" id="galleryInput" accept="image/png, image/jpeg, image/jpg, image/gif" style="display:none" onchange="uploadSelectedImage(this)">
 
 <div id="imageViewer" onclick="closeImage()">
     <img id="viewerImage">
@@ -327,7 +328,6 @@ function checkSecureLogin() {
         if (typeof window.presencePresenceInitialized === "undefined") {
             initChat(); 
         } else {
-            // FIXED: Sync current server timestamp on fresh logins
             db.ref("chats/status/" + USER).update({ state: "online", lastSeen: firebase.database.ServerValue.TIMESTAMP });
             drawMessages();
         }
@@ -378,7 +378,6 @@ function initChat() {
             } else if (info.state === "online") {
                 title.innerHTML = "Indian Customs<br><small style='font-size:11px;color:#25D366;font-weight:bold;'>online</small>";
             } else if (info.lastSeen) {
-                // FIXED: Automatically convert numeric server timestamp back into accurate readable client string
                 let finalTime = info.lastSeen;
                 if (typeof info.lastSeen === "number") {
                     let dateObj = new Date(info.lastSeen);
@@ -406,7 +405,6 @@ function setupPresence() {
 
     connectedRef.on("value", function(snap) {
         if (snap.val() === true && syncUserKey) {
-            // HARDCORE FIX: Used update instead of set to avoid data rollbacks, and assigned dynamic absolute Server Value timestamps upon terminal crashes
             statusRef.onDisconnect().update({ state: "offline", lastSeen: firebase.database.ServerValue.TIMESTAMP, typing: "" });
             if(!appScreenLocked) statusRef.update({ state: "online", lastSeen: firebase.database.ServerValue.TIMESTAMP, typing: "" });
         }
@@ -418,7 +416,6 @@ function setupPresence() {
 
     document.addEventListener("visibilitychange", function() {
         if (document.hidden) {
-            // FIXED: Pushes fresh server time when minimized to avoid ghost intervals
             if(syncUserKey) statusRef.update({ state: "offline", lastSeen: firebase.database.ServerValue.TIMESTAMP, typing: "" });
             
             if (!isAppInSwipedBackground && !isSelectingMedia) {
@@ -447,6 +444,7 @@ function checkScroll() {
     if (autoScroll) document.getElementById("netScrollBtn").style.display = "none";
 }
 
+// Procedural scrolling methods remain untouched
 function scrollBottom() {
     if (!autoScroll) return;
     document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
