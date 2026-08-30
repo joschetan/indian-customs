@@ -115,7 +115,7 @@
   <div id="touchBlockerOverlay">
       <div id="pardaTimerDisplay" style="text-align:center; margin-top:100px; font-size:36px; font-family:monospace; color:#25D366; font-weight:bold;">00:00</div>
       <p style="text-align:center; color:#555; font-size:12px; margin-top:10px;">Touch Locked (Anti-Accidental Mode Active)</p>
-      <button id="pardaEndCallBtn" onclick="endCurrentCallSync()">🔴 End Call</button>
+      <button id="pardaEndCallBtn" onclick="endCurrentCallSync()">End Call</button>
   </div>
 
   <!-- Main UI Display -->
@@ -126,9 +126,9 @@
   </div>
 
   <div class="action-panel">
-      <button class="btn btn-accept" id="acceptBtn" onclick="acceptIncomingCall()">📞 Accept Call</button>
-      <button class="btn btn-dial" id="dialBtn" onclick="startOutgoingDialingSequence()">🔊 Start Secure Call</button>
-      <button class="btn btn-end" id="mainEndBtn" onclick="endCurrentCallSync()">🔴 End Call</button>
+      <button class="btn btn-accept" id="acceptBtn" onclick="acceptIncomingCall()">Accept Call</button>
+      <button class="btn btn-dial" id="dialBtn" onclick="startOutgoingDialingSequence()">Start Secure Call</button>
+      <button class="btn btn-end" id="mainEndBtn" onclick="endCurrentCallSync()">End Call</button>
   </div>
 
   <!-- Audio Node Elements for WebRTC Streams -->
@@ -153,7 +153,9 @@ if (!firebase.apps.length) {
 const db = firebase.database();
 
 let USER = sessionStorage.getItem("ck_user") || "";
-let OTHER_USER = USER === "Alex" ? "Gemini" : "Alex";
+let currentCleanUser = USER.trim().toLowerCase();
+let OTHER_USER = currentCleanUser === "alex" ? "Gemini" : "Alex";
+USER = currentCleanUser === "alex" ? "Alex" : "Gemini";
 
 // WebRTC Parameters
 let localStream;
@@ -174,6 +176,14 @@ window.onload = function() {
     }
     document.getElementById("partyIdentity").innerText = OTHER_USER;
     listenToCallSessionUpdates();
+
+    // Auto-accept handshake if navigated directly via the banner
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('action') === 'accept') {
+        setTimeout(() => {
+            acceptIncomingCall();
+        }, 500);
+    }
 };
 
 // Listen to Firebase Signaling node for tracking Calls
@@ -191,7 +201,7 @@ function listenToCallSessionUpdates() {
         }
 
         // Scenario B: Incoming call signaling triggered by target peer
-        if (data.status === "dialing" && data.caller === OTHER_USER) {
+        if (data.status === "dialing" && (data.caller || "").toLowerCase() === OTHER_USER.toLowerCase()) {
             document.getElementById("runtimeStatus").innerText = "Incoming Secure Call...";
             document.getElementById("acceptBtn").style.display = "block";
             document.getElementById("dialBtn").style.display = "none";
@@ -199,7 +209,7 @@ function listenToCallSessionUpdates() {
         }
 
         // Scenario C: Outgoing call sequence currently ringing target peer
-        if (data.status === "dialing" && data.caller === USER) {
+        if (data.status === "dialing" && (data.caller || "").toLowerCase() === USER.toLowerCase()) {
             document.getElementById("runtimeStatus").innerText = "Ringing secure terminal...";
             document.getElementById("dialBtn").style.display = "none";
             return;
@@ -210,8 +220,7 @@ function listenToCallSessionUpdates() {
             document.getElementById("acceptBtn").style.display = "none";
             document.getElementById("dialBtn").style.display = "none";
             
-            if (data.receiver === USER && !peerConnection) {
-                // Receiver processes answer handshake routing parameters
+            if ((data.receiver || "").toLowerCase() === USER.toLowerCase() && !peerConnection) {
                 document.getElementById("runtimeStatus").innerText = "Connecting handshake...";
             }
             
@@ -237,7 +246,7 @@ function listenToCallSessionUpdates() {
         if (!sdpData || !peerConnection) return;
         
         if (sdpData.type === "offer" && USER === OTHER_USER) {
-            // Safety parsing logic fallback parameter routes
+            // Safety parsing logic fallback
         } else if (sdpData.type === "answer") {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(sdpData));
         }
