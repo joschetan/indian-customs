@@ -172,6 +172,8 @@ let wakeLock = null;
 let timerInterval = null;
 let callSeconds = 0;
 let isSpeakerOn = false;
+let audioCtx = null;
+let gainNode = null;
 
 const rtcConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -192,6 +194,13 @@ window.onload = function() {
         }, 500);
     }
 };
+
+function setTelecomVoicePayload(sdp) {
+    if (sdp.includes("useinbandfec=1")) {
+        return sdp.replace("useinbandfec=1", "useinbandfec=1;mode=voice;telephony=true;minptime=10");
+    }
+    return sdp;
+}
 
 function listenToCallSessionUpdates() {
     callRef.on("value", async function(snapshot) {
@@ -271,6 +280,7 @@ async function startOutgoingDialingSequence() {
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
         
         let offer = await peerConnection.createOffer();
+        offer.sdp = setTelecomVoicePayload(offer.sdp);
         await peerConnection.setLocalDescription(offer);
         
         await callRef.set({
@@ -312,6 +322,7 @@ async function acceptIncomingCall() {
         
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offerSdp));
         let answer = await peerConnection.createAnswer();
+        answer.sdp = setTelecomVoicePayload(answer.sdp);
         await peerConnection.setLocalDescription(answer);
         
         await callRef.child("sdp").child(USER).set({
@@ -340,40 +351,59 @@ function setupPeerConnectionObject() {
         let audioElem = document.getElementById("remoteAudio");
         audioElem.srcObject = event.streams[0];
         document.getElementById("runtimeStatus").innerText = "Secure Line Active";
-        routeAudioHardware(false); // Default: Earpiece mode
+
+        // Web Audio Telecom Hook for forcing Android Voice Mode
+        try {
+            const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtxClass) {
+                audioCtx = new AudioCtxClass({ latencyHint: "interactive" });
+                const source = audioCtx.createMediaStreamSource(event.streams[0]);
+                gainNode = audioCtx.createGain();
+                gainNode.gain.value = 1.0;
+                source.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+            }
+        } catch(e) {
+            console.log("AudioContext routing trace:", e);
+        }
+
+        routeAudioHardware(false);
     };
 }
 
-// 🎧 HARDWARE AUDIO ROUTING ENGINE (Earpiece vs Speakerphone)
 async function routeAudioHardware(enableSpeaker) {
     let audioElem = document.getElementById("remoteAudio");
 
-    if (typeof audioElem.setSinkId === "function") {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const audioOutputs = devices.filter(device => device.kind === "audiooutput");
+    if (enableSpeaker) {
+        if (gainNode) gainNode.gain.value = 1.0;
+        audioElem.volume = 1.0;
 
-            let targetDevice = null;
-            if (enableSpeaker) {
-                targetDevice = audioOutputs.find(d => 
-                    d.label.toLowerCase().includes("speaker") || 
-                    d.deviceId === "speaker" ||
-                    d.deviceId === "default"
+        if (typeof audioElem.setSinkId === "function") {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const speakerDevice = devices.find(d => 
+                    d.kind === "audiooutput" && 
+                    (d.label.toLowerCase().includes("speaker") || d.deviceId === "default" || d.deviceId === "")
                 );
-            } else {
-                targetDevice = audioOutputs.find(d => 
-                    d.label.toLowerCase().includes("earpiece") || 
-                    d.label.toLowerCase().includes("receiver") || 
-                    d.deviceId === "communications" ||
-                    d.label.toLowerCase().includes("phone")
-                );
-            }
+                await audioElem.setSinkId(speakerDevice ? speakerDevice.deviceId : "");
+            } catch(e) {}
+        }
+    } else {
+        // Earpiece mode routing
+        if (gainNode) gainNode.gain.value = 0.85;
+        audioElem.volume = 0.85;
 
-            if (targetDevice && targetDevice.deviceId) {
-                await audioElem.setSinkId(targetDevice.deviceId);
-            }
-        } catch (e) {
-            console.log("Audio device routing note:", e);
+        if (typeof audioElem.setSinkId === "function") {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const earpieceDevice = devices.find(d => 
+                    d.kind === "audiooutput" && 
+                    (d.deviceId === "communications" || d.label.toLowerCase().includes("earpiece") || d.label.toLowerCase().includes("receiver") || d.label.toLowerCase().includes("phone"))
+                );
+                if (earpieceDevice) {
+                    await audioElem.setSinkId(earpieceDevice.deviceId);
+                }
+            } catch (e) {}
         }
     }
 }
@@ -442,6 +472,10 @@ async function endCurrentCallSync() {
     deactivateTouchBlockerParda();
     releaseScreenWakeLockAPI();
 
+    if (audioCtx) {
+        audioCtx.close().catch(() => {});
+        audioCtx = null;
+    }
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
